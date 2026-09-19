@@ -1,0 +1,46 @@
+# User data, including SQLite journals
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.db3
+# Local execution, caches and release binaries
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage*
+htmlcov/
+work/
+build/
+dist/
+release/
+*.log
+*.exe
+*.dll
+*.pyd
+*.zip
+# Local editors and OS files
+.vscode/
+.idea/
+*.user
+*.suo
+Thumbs.db
+Desktop.ini
+# Credentials and local settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+credentials*
+secrets*
+token*
+*.db3-*
+secret*
+*.code-workspace

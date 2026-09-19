@@ -1,0 +1,19 @@
+Cashing 个人记账 v1.0.0
+
+正式程序：
+  release\Cashing-v1.0.0-windows\Cashing\Cashing.exe
+
+可携带发行包：
+  release\Cashing-v1.0.0-windows.zip
+
+请先解压 ZIP，再双击 Cashing.exe。
+必须保留 Cashing 目录及其中的 _internal 文件夹，不能只复制 EXE。
+不需要安装 Python，不需要运行 start.bat。
+
+start.bat 仅用于源码开发环境启动。
+build 和 dist 用于构建，release 才是本轮正式交付目录。
+
+账单默认保存到：
+  %LOCALAPPDATA%\Cashing\ledger.sqlite3
+
+详见 README.md 与 RELEASE_AUDIT.md。
