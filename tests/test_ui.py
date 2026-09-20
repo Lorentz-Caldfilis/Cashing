@@ -22,7 +22,7 @@ def window(qtbot, database, monkeypatch):
     return widget
 
 
-def fill(form, amount="28.50", category="饮食", when="2026-09-19 22:15", description="晚饭"):
+def fill(form, amount="28.50", category="生活", when="2026-09-19 22:15", description="晚饭"):
     form.amount.setText(amount)
     form.category.setCurrentText(category)
     form.when.setDateTime(QDateTime.fromString(when,"yyyy-MM-dd HH:mm"))
@@ -85,7 +85,7 @@ def test_bad_input_and_write_failure_preserve_form(window,qtbot,monkeypatch):
 
 
 def test_edit_across_month(window,database,qtbot):
-    database.add_record(100,datetime(2026,9,19),"饮食")
+    database.add_record(100,datetime(2026,9,19),"生活")
     page=window.records_page
     september(page)
     page.table.selectRow(0)
@@ -105,7 +105,7 @@ def test_edit_across_month(window,database,qtbot):
 
 
 def test_delete_cancel_then_confirm_and_no_selection(window,database,qtbot):
-    database.add_record(2850,datetime(2026,9,19),"饮食")
+    database.add_record(2850,datetime(2026,9,19),"生活")
     page=window.records_page
     september(page)
     page.edit_selected()
@@ -129,7 +129,7 @@ def test_delete_cancel_then_confirm_and_no_selection(window,database,qtbot):
 
 def test_long_plain_description(window,database):
     text="<b>普通文本</b>"+"中"*185
-    database.add_record(1,datetime(2026,9,19),"饮食",text)
+    database.add_record(1,datetime(2026,9,19),"生活",text)
     page=window.records_page
     september(page)
     page.table.selectRow(0)
@@ -138,7 +138,7 @@ def test_long_plain_description(window,database):
 
 
 def test_refresh_reuses_figure_and_failure_never_looks_empty(window,database,monkeypatch):
-    database.add_record(100,datetime(2026,9,19),"饮食")
+    database.add_record(100,datetime(2026,9,19),"生活")
     page=window.records_page
     september(page)
     figure,axes,canvas=page.chart.figure,page.chart.axes,page.chart.canvas
@@ -157,7 +157,7 @@ def test_refresh_reuses_figure_and_failure_never_looks_empty(window,database,mon
 
 
 def test_edit_failure_keeps_dialog_open(qtbot,database,monkeypatch):
-    database.add_record(1,datetime(2026,9,19),"饮食")
+    database.add_record(1,datetime(2026,9,19),"生活")
     record=database.get_records_by_month(2026,9)[0]
     dialog=EditDialog(database,record)
     qtbot.addWidget(dialog)

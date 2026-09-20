@@ -52,7 +52,7 @@ def schedule_smoke_check(app, window, database, directory):
             window.content_scroll.ensureWidgetVisible(window.input_page.save_button)
             QTest.mouseClick(window.input_page.save_button, Qt.MouseButton.LeftButton)
             check("已保存" not in window.input_page.feedback.text(), "zero_amount_rejected")
-            for amount, category in [("28.50", "饮食"), ("100.00", "工具"), ("50.00", "娱乐")]:
+            for amount, category in [("28.50", "生活"), ("100.00", "工具"), ("50.00", "娱乐")]:
                 form.amount.clear()
                 QTest.keyClicks(form.amount, amount)
                 form.category.setCurrentText(category)

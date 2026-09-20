@@ -55,7 +55,7 @@ def test_keyboard_flow_and_no_duplicate_signals(window,qtbot,database):
 
 
 def test_table_resize_preserves_long_text_visibility(window,database,qtbot):
-    database.add_record(1234,datetime(2026,9,1),"饮食","很长的中文说明"*24)
+    database.add_record(1234,datetime(2026,9,1),"生活","很长的中文说明"*24)
     window.navigation.setCurrentRow(1)
     september(window.records_page)
     window.resize(1180,780)
@@ -69,7 +69,7 @@ def test_table_resize_preserves_long_text_visibility(window,database,qtbot):
 
 
 def test_mouse_double_click_edit_and_cancel(window,database,qtbot):
-    database.add_record(1,datetime(2026,9,1),"饮食")
+    database.add_record(1,datetime(2026,9,1),"生活")
     window.navigation.setCurrentRow(1)
     p=window.records_page
     september(p)
@@ -92,7 +92,7 @@ def test_mouse_double_click_edit_and_cancel(window,database,qtbot):
 
 
 def test_context_menu_opens_edit(window,database,qtbot):
-    database.add_record(1,datetime(2026,9,1),"饮食")
+    database.add_record(1,datetime(2026,9,1),"生活")
     window.navigation.setCurrentRow(1)
     p=window.records_page
     september(p)
