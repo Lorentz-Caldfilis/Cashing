@@ -93,6 +93,19 @@ QPushButton#monthLabel {{ background: transparent; border: 1px solid transparent
 QPushButton#monthLabel:hover {{ background: {HOVER}; }}
 QPushButton#monthLabel:focus {{ border-color: {ACCENT_SOFT}; }}
 
+/* In-place row editors */
+QLineEdit#rowEdit, QDateTimeEdit#rowEdit {{
+    background: transparent; border: none; border-bottom: 1px solid {ACCENT_SOFT}; padding: 0px 2px;
+    color: {TEXT}; selection-background-color: {ACCENT_SOFT}; selection-color: {TEXT}; }}
+QLineEdit#rowEdit:focus, QDateTimeEdit#rowEdit:focus {{ border-bottom-color: {ACCENT}; }}
+QDateTimeEdit#rowEdit {{ color: {TEXT_2}; }}
+QComboBox#rowEdit {{ background: transparent; border: none; border-bottom: 1px solid {ACCENT_SOFT};
+    padding: 0px 2px; color: {TEXT_2}; min-width: 70px; }}
+QComboBox#rowEdit:focus {{ border-bottom-color: {ACCENT}; }}
+QComboBox#rowEdit::drop-down {{ border: none; width: 16px; }}
+QComboBox QAbstractItemView {{ background: {SURFACE}; border: 1px solid {HAIRLINE}; padding: 4px;
+    selection-background-color: {HOVER}; selection-color: {TEXT}; outline: 0; }}
+
 /* Popover */
 QFrame#popover {{ background: {SURFACE}; border: 1px solid {HAIRLINE}; border-radius: 10px; }}
 QFrame#popover QDateTimeEdit {{

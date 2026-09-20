@@ -66,6 +66,8 @@ class MainWindow(QMainWindow):
         index = max(CAPTURE, min(REVIEW, index))  # no wrap-around
         if index == self.spaces.current_index():
             return False
+        if index == CAPTURE and not self.review.leave():
+            return False  # an invalid edit must be fixed or cancelled first
         self.spaces.set_index(index, animate)
         self.dots.set_index(index)
         self._update_overlays()

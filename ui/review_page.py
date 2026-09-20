@@ -4,11 +4,11 @@ Summary and history are one thought, not two tabs. Structure comes from
 spacing, alignment and day headings; there are no cards, no per-row lines.
 """
 from datetime import datetime
-from PySide6.QtCore import Qt, Signal, QRectF, QSize
-from PySide6.QtGui import QPainter, QColor, QPen, QFontMetrics
+from PySide6.QtCore import Qt, QObject, Signal, QRectF, QEvent
+from PySide6.QtGui import QPainter, QColor, QPen
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QToolButton,
-    QScrollArea, QFrame, QSizePolicy,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QToolButton, QScrollArea, QFrame, QApplication,
+    QSizePolicy,
 )
 from database import DatabaseError
 from domain import (
@@ -16,10 +16,9 @@ from domain import (
     MIN_YEAR,
 )
 from ui import theme
+from ui.record_row import RecordRow, DayHeading  # noqa: F401  (DayHeading re-exported for tests)
 
 COLUMN_WIDTH = 600
-EDGE_ROOM = 44          # right-hand room reserved for the delete edge (M5)
-ROW_RADIUS = 6
 DONUT_SIZE = 112
 RING_WIDTH = 14
 
@@ -27,35 +26,6 @@ RING_WIDTH = 14
 def month_is_current(year, month, now=None):
     now = now or datetime.now()
     return (year, month) == (now.year, now.month)
-
-
-class ElidedLabel(QLabel):
-    """Single line; long text is cut with an ellipsis instead of growing the row."""
-
-    def __init__(self, text="", parent=None):
-        super().__init__(text, parent)
-        self._full = text
-        self.setTextFormat(Qt.TextFormat.PlainText)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-
-    def setText(self, text):
-        self._full = text
-        super().setText(text)
-        self.setToolTip(text if len(text) > 40 else "")
-
-    def full_text(self):
-        return self._full
-
-    def minimumSizeHint(self):
-        return QSize(40, super().minimumSizeHint().height())
-
-    def paintEvent(self, event):
-        metrics = QFontMetrics(self.font())
-        painter = QPainter(self)
-        painter.setPen(QColor(self.palette().color(self.foregroundRole())))
-        painter.setFont(self.font())
-        text = metrics.elidedText(self._full, Qt.TextElideMode.ElideRight, self.width())
-        painter.drawText(self.rect(), int(self.alignment()) | Qt.AlignmentFlag.AlignVCenter, text)
 
 
 class DonutChart(QWidget):
@@ -185,100 +155,15 @@ class SummaryBlock(QWidget):
         self.empty.hide()
 
 
-class RecordRow(QWidget):
-    """Two lines: time / amount, then description / category. Facts before interpretation."""
-    clicked = Signal(object)
-
-    def __init__(self, record, parent=None):
-        super().__init__(parent)
-        self.record = record
-        self._hover = False
-        self.editing = False
-        self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
-        grid = QGridLayout(self)
-        grid.setContentsMargins(12, 9, 12 + EDGE_ROOM, 9)
-        grid.setHorizontalSpacing(16)
-        grid.setVerticalSpacing(2)
-        self.time = QLabel()
-        self.time.setFont(theme.font(13, tabular=True))
-        self.time.setStyleSheet(f"color: {theme.TEXT_3};")
-        grid.addWidget(self.time, 0, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self.amount = QLabel()
-        self.amount.setFont(theme.font(17, theme.MEDIUM, tabular=True))
-        self.amount.setStyleSheet(f"color: {theme.TEXT};")
-        self.amount.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        grid.addWidget(self.amount, 0, 1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        self.description = ElidedLabel()
-        self.description.setFont(theme.font(16))
-        self.description.setStyleSheet(f"color: {theme.TEXT};")
-        grid.addWidget(self.description, 1, 0)
-        self.category = QWidget()
-        category_layout = QHBoxLayout(self.category)
-        category_layout.setContentsMargins(0, 0, 0, 0)
-        category_layout.setSpacing(6)
-        category_layout.addStretch()
-        self.category_dot = QLabel()
-        self.category_dot.setFixedSize(6, 6)
-        category_layout.addWidget(self.category_dot, 0, Qt.AlignmentFlag.AlignVCenter)
-        self.category_name = QLabel()
-        self.category_name.setFont(theme.font(13))
-        self.category_name.setStyleSheet(f"color: {theme.TEXT_3};")
-        category_layout.addWidget(self.category_name)
-        grid.addWidget(self.category, 1, 1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        grid.setColumnStretch(0, 1)
-        self.show_record(record)
-
-    def show_record(self, record):
-        self.record = record
-        self.time.setText(record["datetime"][11:16])
-        self.amount.setText(format_amount(record["amount_cents"]))
-        self.description.setText(record["description"])
-        category = record["category"]
-        known = category in CATEGORIES
-        self.category_name.setText(category if known else "")
-        self.category_dot.setStyleSheet(
-            f"background: {theme.CATEGORY_COLORS[category]}; border-radius: 3px;" if known else "background: transparent;")
-        self.category_dot.setVisible(known)
-        self.setAccessibleName(f"{record['datetime']} {format_amount(record['amount_cents'])} {record['description']}")
-
-    # ---- states ----------------------------------------------------------
-    def enterEvent(self, event):
-        self._hover = True
-        self.update()
-
-    def leaveEvent(self, event):
-        self._hover = False
-        self.update()
-
-    def paintEvent(self, event):
-        if not (self._hover or self.editing):
-            return
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(theme.ACCENT_TINT if self.editing else theme.HOVER))
-        painter.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), ROW_RADIUS, ROW_RADIUS)
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit(self)
-        event.accept()
-
-
-class DayHeading(QLabel):
-    def __init__(self, text, parent=None):
-        super().__init__(text, parent)
-        self.setFont(theme.font(14, theme.MEDIUM))
-        self.setStyleSheet(f"color: {theme.TEXT_2}; padding-left: 12px;")
-
-
 class HistoryList(QWidget):
-    row_clicked = Signal(object)
+    row_clicked = Signal(object, str)
+    row_changed = Signal(object, dict, dict)
+    row_delete = Signal(object)
+    row_edit_ended = Signal(object)
 
-    def __init__(self, parent=None):
+    def __init__(self, ledger, parent=None):
         super().__init__(parent)
+        self.ledger = ledger
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
         self._layout.setSpacing(0)
@@ -304,8 +189,11 @@ class HistoryList(QWidget):
             self._layout.addWidget(DayHeading(describe_day(day, with_year=headings_with_year)))
             self._layout.addSpacing(6)
             for record in records:
-                row = RecordRow(record)
+                row = RecordRow(record, self.ledger)
                 row.clicked.connect(self.row_clicked)
+                row.changed.connect(self.row_changed)
+                row.delete_requested.connect(self.row_delete)
+                row.edit_ended.connect(self.row_edit_ended)
                 self._layout.addWidget(row)
                 self.rows.append(row)
 
@@ -322,6 +210,9 @@ class ReviewPage(QWidget):
         now = datetime.now()
         self.year, self.month = now.year, now.month
         self.view = None
+        self.editing_row = None
+        self._rebuild_after_edit = False
+        self._guard = ClickOutsideGuard(self)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
         outer = QVBoxLayout(self)
@@ -378,6 +269,7 @@ class ReviewPage(QWidget):
         self.column = QWidget()
         self.column.setObjectName("scrollBody")
         self.column.setMaximumWidth(COLUMN_WIDTH)
+        self.column.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         column = QVBoxLayout(self.column)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(0)
@@ -391,10 +283,21 @@ class ReviewPage(QWidget):
         self.failure.hide()
         column.addWidget(self.failure)
         column.addSpacing(40)
-        self.history = HistoryList()
+        self.history = HistoryList(ledger)
+        self.history.row_clicked.connect(self._row_clicked)
+        self.history.row_changed.connect(self._row_changed)
+        self.history.row_delete.connect(self._delete_row)
+        self.history.row_edit_ended.connect(self._row_edit_ended)
         column.addWidget(self.history)
         column.addStretch()
-        body_layout.addWidget(self.column, 0, Qt.AlignmentFlag.AlignHCenter)
+        # Centre with stretches, not with an alignment flag: an aligned widget only gets its
+        # size hint, which would make the whole list jump when a row builds its editors.
+        centred = QHBoxLayout()
+        centred.setContentsMargins(0, 0, 0, 0)
+        centred.addStretch(1)
+        centred.addWidget(self.column, 100)  # takes all it may (max width), margins share the rest
+        centred.addStretch(1)
+        body_layout.addLayout(centred)
         self.scroll.setWidget(body)
         outer.addWidget(self.scroll, 1)
         self.refresh()
@@ -405,7 +308,7 @@ class ReviewPage(QWidget):
 
     def show_current_month(self):
         now = datetime.now()
-        if (self.year, self.month) == (now.year, now.month):
+        if (self.year, self.month) == (now.year, now.month) or not self.leave():
             return
         self.year, self.month = now.year, now.month
         self.refresh()
@@ -419,12 +322,16 @@ class ReviewPage(QWidget):
         now = datetime.now()
         if (year, month) > (now.year, now.month):
             return  # the future has no records
+        if not self.leave():
+            return  # an invalid edit keeps the context until fixed or cancelled
         self.year, self.month = year, month
         self.refresh()
         self.scroll.verticalScrollBar().setValue(0)
 
     # ---- data -------------------------------------------------------------------
-    def refresh(self):
+    def refresh(self, *, keep_scroll=False):
+        position = self.scroll.verticalScrollBar().value() if keep_scroll else 0
+        self._drop_edit_state()
         self.month_label.setText(describe_month(self.year, self.month))
         self.previous.setEnabled((self.year, self.month) != (MIN_YEAR, 1))
         self.next.setEnabled(not self.at_current_month())
@@ -441,6 +348,115 @@ class ReviewPage(QWidget):
         self.view = view
         self.summary.set_totals(view.totals)
         self.history.show_groups(view.groups)
+        if keep_scroll:
+            self.scroll.verticalScrollBar().setValue(position)
 
     def rows(self):
         return self.history.rows
+
+    # ---- edit state (Browse → Edit → Browse) --------------------------------
+    def leave(self):
+        """Finish the current edit if it is valid; False means the user must fix or cancel it first.
+        The row reports back through edit_ended, which is what actually clears the state."""
+        if self.editing_row is None:
+            return True
+        return self.editing_row.end_edit()
+
+    def cancel_edit(self):
+        if self.editing_row is not None:
+            self.editing_row.cancel_edit()
+
+    def _row_edit_ended(self, row):
+        if row is self.editing_row:
+            self._finished_edit()
+
+    def _drop_edit_state(self):
+        self.editing_row = None
+        self._rebuild_after_edit = False
+        self._guard.disarm()
+
+    def _finished_edit(self):
+        rebuild = self._rebuild_after_edit
+        self._drop_edit_state()
+        self.setFocus()
+        if rebuild:
+            self.refresh(keep_scroll=True)
+
+    def _row_clicked(self, row, cell):
+        if row is self.editing_row:
+            return
+        if not self.leave():
+            return
+        self.editing_row = row
+        row.begin_edit(cell)
+        self._guard.arm()
+
+    def _row_changed(self, row, old, new):
+        """A legal change already reached the ledger: keep the summary honest right away."""
+        try:
+            totals = self.ledger.month(self.year, self.month).totals
+        except DatabaseError:
+            return
+        self.summary.set_totals(totals)
+        if old["datetime"] != new["datetime"]:
+            self._rebuild_after_edit = True  # order or month membership changed; re-sort once the edit ends
+
+    # ---- delete + undo -------------------------------------------------------
+    def _delete_row(self, row):
+        record = row.record
+        try:
+            snapshot = self.ledger.delete(record)
+        except DatabaseError as exc:
+            self.notify(f"删除失败，这条记录仍然保留。{exc}", danger=True)
+            return
+        self.refresh(keep_scroll=True)
+        text = f"已删除 {format_amount(snapshot['amount_cents'])}"
+        if snapshot["description"]:
+            text += f" · {snapshot['description']}"
+        self.notify(text, undo=lambda: self._restore(snapshot))
+
+    def _restore(self, snapshot):
+        try:
+            self.ledger.restore(snapshot)
+        except DatabaseError as exc:
+            self.notify(f"无法恢复，这条记录仍处于已删除状态。{exc}", danger=True)
+            return
+        self.refresh(keep_scroll=True)
+
+    def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape and self.editing_row is not None:
+            self.cancel_edit()
+            return
+        super().keyPressEvent(event)
+
+
+class ClickOutsideGuard(QObject):
+    """While a row is being edited, a press anywhere else ends the edit — or, if the
+    edit is invalid, is swallowed so the user stays with the field that needs fixing."""
+
+    def __init__(self, page):
+        super().__init__(page)
+        self.page = page
+        self._armed = False
+
+    def arm(self):
+        if not self._armed:
+            QApplication.instance().installEventFilter(self)
+            self._armed = True
+
+    def disarm(self):
+        if self._armed:
+            QApplication.instance().removeEventFilter(self)
+            self._armed = False
+
+    def eventFilter(self, watched, event):
+        if event.type() != QEvent.Type.MouseButtonPress or not isinstance(watched, QWidget):
+            return False
+        row = self.page.editing_row
+        if row is None or watched.window() is not self.page.window():
+            return False  # popups (combo lists, menus) belong to the edit
+        if watched is row or row.isAncestorOf(watched):
+            return False
+        if self.page.leave():
+            return False
+        return True

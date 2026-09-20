@@ -12,13 +12,13 @@ A new session must be able to resume from this file + git history + `docs/design
 | 2 | Capture rebuild (amount hero, description, weak time + popover, 记录, Enter flow, save/undo toast, local errors) | **done** |
 | 3 | Capture ⇄ Review spaces + horizontal page switching (dots, edges, Alt+←/→, trackpad wheel) | **done** |
 | 4 | Review Summary + History (month nav, total, three categories, donut, day groups) | **done** |
-| 5 | In-place edit, PC delete edge, delete/undo | pending |
+| 5 | In-place edit, PC delete edge, delete/undo | **done** |
 | 6 | Search, Utility (⋮), Draft persistence | pending |
 | 7 | Full tests, real launch verification, cleanup (remove old UI, matplotlib, smoke check rewrite, README) | pending |
 
 ## Current phase
 
-Milestone 4 complete. Next: Milestone 5 (in-place edit on `RecordRow`, PC delete edge, delete + undo toast, Delete/Esc/Enter keys, click-outside exit, invalid edits block leaving).
+Milestone 5 complete. Next: Milestone 6 (Search as a Review state, Utility ⋮ overlay with 数据/关于, draft already done in M2 — verify end to end).
 
 ## Audit result (M1): gaps between v1.0.0 and the frozen spec
 
@@ -58,10 +58,18 @@ Milestone 4 complete. Next: Milestone 5 (in-place edit on `RecordRow`, PC delete
 - `ui/main_window.py`: uses `ReviewPage(ledger, notify)`; Review refreshes on every Capture change and on entering the space.
 - Tests: `tests/test_ui_review.py` (10 cases) replaces `tests/test_ui.py` + `tests/test_ui_audit.py` (their intents ported: chart/navigation/bounds, long plain description, refresh reuse + failure never looks empty, no duplicate widgets after repeated switching, destruction after close; edit/delete intents move to M5). Native drive `work/drive_m4.py` screenshots checked.
 
+## Done in M5 (files)
+
+- `ui/record_row.py` (new; `ElidedLabel`, `DayHeading`, `DeleteEdge`, `CategoryBox`, `RecordRow` moved here): single click → `begin_edit(cell)` swaps labels for frameless editors of identical heights (`LINE1_HEIGHT`/`LINE2_HEIGHT`), accent bar + `ACCENT_TINT` painted in `paintEvent`, no shadow. Each field commits on `editingFinished` (category on index change) through `Ledger.update`; unchanged → no write; `ValueError`/`DatabaseError` → hint under the row, stay in Edit. Enter (event filter on editors, also catches validator-intermediate text like `5.`) = commit all + leave; Esc = reload fields + leave; Tab = next field; Delete with focus on the row itself = `delete_requested`; Delete inside a field edits text. `edit_ended` tells the page whenever the row leaves Edit. `DeleteEdge` lives in the reserved 44 px: 3 px danger strip, `enterEvent` animates to 40 px with `删除` on `DANGER_TINT`, click → delete.
+- `ui/review_page.py`: `editing_row` state; `leave()` (used by month change, page switch, search later) returns False while a field is invalid; `ClickOutsideGuard` (application mouse-press filter armed only during an edit: presses outside the row end the edit, or are swallowed if it is invalid; popups excluded). `_row_changed` refreshes only the summary immediately and defers the re-sort until the edit ends when the datetime changed. `_delete_row` → `Ledger.delete` → rebuild keeping scroll → toast `已删除 ¥ · 说明  撤销` → `Ledger.restore` (same id, same place) → Browse. Failures: `删除失败，这条记录仍然保留。` / `无法恢复，这条记录仍处于已删除状态。` as danger toasts. Column is now centred with stretch factors (an aligned widget only got its size hint and the list jumped 372→514 px when editors were built — fixed in Capture too).
+- `ui/main_window.py`: `switch_to(CAPTURE)` refuses while an edit is invalid. `ui/theme.py`: `#rowEdit` styles.
+- Tests: `tests/test_ui_edit.py` (14 cases). Native drive `work/drive_m5.py` confirmed edit → commit → delete → undo.
+
 ## Spec items implemented so far
 
 - Store facts, derive interpretation; unknown category allowed and never a task (domain/db level).
 - Capture (IA §5, Interaction §2–§9, VDS §10/§11/§21, Amendments §1): default focus, Enter path, no category control, weak time with light editor, write-before-clear, stay in Capture, toast + undo restoring input, local errors, draft on close.
+- In-place Edit / Delete Armed / Undo (IA §10–§11, Interaction §12–§16, §23–§25, Amendments §5–§7): click to edit in place, legal changes at once, illegal ones explained locally and blocking, click outside exits, Esc cancels, Delete only on a selected record, PC delete edge, execute + undo instead of confirm.
 - Review = Summary + History in one reading (IA §6–§9, VDS §20/§22, Amendments §2–§4): month nav with no future, neutral total, three categories without percentages, small ring without centre text, empty month without ring, history by day with two-line rows, no per-row separators, category weakest.
 - Two spaces, fixed left/right relation, no wrap, wordless dots, edge click, Alt+←/→, trackpad horizontal wheel, short non-elastic slide (IA §3, Interaction §19–§21, §24, Amendments §8).
 - Backward-compatible migration with tests (real user ledger at `%LOCALAPPDATA%\Cashing\ledger.sqlite3` was inspected via a copy only: schema v1, 0 records).
@@ -72,7 +80,8 @@ Everything visual/interactive (M2–M6); removal of old UI/matplotlib (M7).
 
 ## Known issues
 
-- Interim: no editing or deleting until M5 (the old table/dialog UI is no longer wired; `ui/records_page.py`, `ui/edit_dialog.py`, `ui/record_form.py`, `ui/input_page.py` are dead files kept only until M7's cleanup, together with the matplotlib dependency).
+- `ui/records_page.py`, `ui/edit_dialog.py`, `ui/record_form.py`, `ui/input_page.py` are dead files kept only until M7's cleanup, together with the matplotlib dependency.
+- Delete-edge hover expansion and the edit tint/bar need human visual validation (synthetic mouse moves do not produce enter events).
 - `smoke_check.py` still drives the old UI and cannot run; rewritten in M7.
 - Month switch has no fade (Interaction §22 says "may"); content simply replaces. Trackpad wheel direction, edge chevrons and the ring need human visual validation.
 
@@ -81,13 +90,13 @@ Everything visual/interactive (M2–M6); removal of old UI/matplotlib (M7).
 - M1: `pytest --basetemp ./work/pytest-m1b -q` → 132 passed (100 original + 32 new/updated).
 - M2: `PYTHONUTF8=1 pytest --basetemp ./work/pytest-m2 -q` → 148 passed.
 - M3: `PYTHONUTF8=1 pytest --basetemp ./work/pytest-m3 -q` → 156 passed.
-- M4: `PYTHONUTF8=1 pytest --basetemp ./work/pytest-m4 -q` → 154 passed (old table/dialog tests removed, Review tests ported). Native-platform drive script `work/drive_m2.py` (not committed) produced screenshots and confirmed Enter path, toast, undo.
+- M4: `PYTHONUTF8=1 pytest --basetemp ./work/pytest-m4 -q` → 154 passed (old table/dialog tests removed, Review tests ported).
+- M5: `PYTHONUTF8=1 pytest --basetemp ./work/pytest-m5 -q` → 168 passed. Native-platform drive script `work/drive_m2.py` (not committed) produced screenshots and confirmed Enter path, toast, undo.
 - Launch check: `python main.py --data-dir D:\Dev\Cashing\work\m1-launch` starts with empty stderr.
-
-## Resume here (superseded — see below)
-
-Old M4 note: write `ui/review_page.py` — fixed header (‹ 2026 年 9 月 › centred; › disabled at the current month; label click = back to this month), scrollable body: total `¥ 2,438.50` (neutral, 40 px Medium), three categories as a compact list with small colour dots + right-aligned tabular amounts (+ a very weak `暂未判断 ¥X` line only when non-zero), a QPainter donut (~110 px, no centre text, no empty ring: `本月暂无记录`), history grouped by day (`9 月 20 日 星期日`), rows = two lines (time/amount, description/category), no per-row separators. Use `Ledger.month()`. Swap it into `MainWindow` for the old `RecordsPage`; port `test_ui.py`/`test_ui_audit.py` Review tests to the new page (`window.review`). Trackpad wheel direction and edge chevrons still need human validation.
 
 ## Resume here
 
-Start Milestone 5 in `ui/review_page.py`: give `RecordRow` an edit mode (swap labels for frameless editors of the same fonts/heights: amount QLineEdit right-aligned with the amount validator, description QLineEdit, time QDateTimeEdit `yyyy-MM-dd HH:mm`, category flat QComboBox 生活/工具/娱乐/暂未判断), accent bar on the left + `ACCENT_TINT` background, no shadow. Commit each field on `editingFinished` through `Ledger.update(record, **change)` (immediate effect); invalid → local hint under the row, stay in edit; Enter = commit + exit, Esc = discard field + exit, Tab = next field, Delete with focus on the row (not in an editor) = delete. Click outside (application-level mouse-press filter) exits when valid. `DeleteEdge` child in the reserved 44 px: 3 px danger strip, expands to ~40 px with `删除` on hover, click → `Ledger.delete` → row removed + toast `已删除 ¥ · 说明  撤销` → `Ledger.restore`. `ReviewPage.leave()` must finish/refuse (invalid) before month change / page switch / search. Port the M5 intents from the removed tests: edit across month moves the record, edit failure keeps the edit open, failed delete keeps the row and totals.
+Start Milestone 6 in `ui/review_page.py` + `ui/main_window.py`:
+1. Search (Interaction §17–§18, IA §12): a low-presence search glyph at the right of the Review header; clicking it (or Ctrl+F while in Review) replaces the month row with a search field `搜索记录…` + ×, focus in the field, arrows hidden; the summary hides; results = `Ledger.search(text)` across all history, grouped by day with year headings (`describe_day(..., with_year=True)`), empty → `没有找到“…”相关记录`; results are editable in place with the same row machinery and stay in the search context after an edit; Esc / × exits and restores the month + scroll position; `MainWindow.switch_to(CAPTURE)` exits search first. Enter search only after `leave()` succeeds.
+2. Utility: a `⋮` `QToolButton#utility` overlay at the top-right of the central widget (both spaces), QMenu with `数据` (opens the data directory via QDesktopServices) and `关于 Cashing` (small about box: version, data path). Needs the data directory passed to `MainWindow` (already there).
+3. Draft is done (M2) — re-verify end to end with a real process restart in M7.
