@@ -6,7 +6,7 @@ from draft import DraftStore
 from ledger import Ledger
 from ui import theme
 from ui.capture_page import CapturePage
-from ui.records_page import RecordsPage
+from ui.review_page import ReviewPage
 from ui.spaces import SpaceSwitcher, PageDots, EdgeZone, WheelNavigator, EDGE_WIDTH
 from ui.toast import Toast
 
@@ -32,7 +32,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         self.spaces = SpaceSwitcher()
         self.capture = CapturePage(self.ledger, self.notify)
-        self.review = RecordsPage(database)
+        self.review = ReviewPage(self.ledger, self.notify)
         self.spaces.add_page(self.capture)
         self.spaces.add_page(self.review)
         layout.addWidget(self.spaces)

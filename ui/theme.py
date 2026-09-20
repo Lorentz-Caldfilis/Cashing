@@ -82,6 +82,17 @@ QPushButton#record:disabled {{ background: #e3e6ea; color: #a5adb6; border-color
 QLabel#error {{ color: {DANGER}; font-size: 13px; }}
 QLabel#errorDetail {{ color: {TEXT_3}; font-size: 12px; }}
 
+/* Review header */
+QToolButton#monthArrow {{ background: transparent; border: 1px solid transparent; border-radius: 6px;
+    color: {TEXT_2}; font-size: 22px; padding: 0px 8px 3px 8px; min-width: 20px; }}
+QToolButton#monthArrow:hover {{ background: {HOVER}; color: {TEXT}; }}
+QToolButton#monthArrow:focus {{ border-color: {ACCENT_SOFT}; }}
+QToolButton#monthArrow:disabled {{ color: #d3d8de; }}
+QPushButton#monthLabel {{ background: transparent; border: 1px solid transparent; border-radius: 6px;
+    color: {TEXT}; padding: 2px 12px; }}
+QPushButton#monthLabel:hover {{ background: {HOVER}; }}
+QPushButton#monthLabel:focus {{ border-color: {ACCENT_SOFT}; }}
+
 /* Popover */
 QFrame#popover {{ background: {SURFACE}; border: 1px solid {HAIRLINE}; border-radius: 10px; }}
 QFrame#popover QDateTimeEdit {{
