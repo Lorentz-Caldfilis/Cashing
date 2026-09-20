@@ -21,6 +21,7 @@ ACCENT_HOVER = "#4a5a6c"
 ACCENT_PRESSED = "#3f4e5e"
 ACCENT_SOFT = "#c3cdd8"  # focus underline
 ACCENT_TINT = "#eef1f5"  # edit background
+ROW_HINT = "#dde2e8"     # faint rest underline of the description while a row is edited
 # Category semantics
 LIFE = "#6f8f72"
 TOOL = "#627f9f"
@@ -102,16 +103,19 @@ QToolButton#searchGlyph {{ background: transparent; border: 1px solid transparen
 QToolButton#searchGlyph:hover {{ background: {HOVER}; }}
 QToolButton#searchGlyph:focus {{ border-color: {ACCENT_SOFT}; }}
 
-/* In-place row editors */
+/* In-place row editors: at rest they read as text; only the focused field says "editing" */
 QLineEdit#rowEdit, QDateTimeEdit#rowEdit {{
-    background: transparent; border: none; border-bottom: 1px solid {ACCENT_SOFT}; padding: 0px 2px;
+    background: transparent; border: none; border-bottom: 1px solid transparent; padding: 0px 2px;
     color: {TEXT}; selection-background-color: {ACCENT_SOFT}; selection-color: {TEXT}; }}
+QLineEdit#rowEdit[field="description"] {{ border-bottom-color: {ROW_HINT}; }}
+QLineEdit#rowEdit:hover, QDateTimeEdit#rowEdit:hover {{ border-bottom-color: {ACCENT_SOFT}; }}
 QLineEdit#rowEdit:focus, QDateTimeEdit#rowEdit:focus {{ border-bottom-color: {ACCENT}; }}
 QDateTimeEdit#rowEdit {{ color: {TEXT_2}; }}
-QComboBox#rowEdit {{ background: transparent; border: none; border-bottom: 1px solid {ACCENT_SOFT};
-    padding: 0px 2px; color: {TEXT_2}; min-width: 70px; }}
+QComboBox#rowEdit {{ background: transparent; border: none; border-bottom: 1px solid transparent;
+    padding: 0px 12px 0px 2px; color: {TEXT_2}; }}
+QComboBox#rowEdit:hover {{ color: {TEXT}; }}
 QComboBox#rowEdit:focus {{ border-bottom-color: {ACCENT}; }}
-QComboBox#rowEdit::drop-down {{ border: none; width: 16px; }}
+QComboBox#rowEdit::drop-down {{ border: none; width: 12px; }}
 QComboBox QAbstractItemView {{ background: {SURFACE}; border: 1px solid {HAIRLINE}; padding: 4px;
     selection-background-color: {HOVER}; selection-color: {TEXT}; outline: 0; }}
 

@@ -71,6 +71,16 @@ Tests: new `test_migration.py`, `test_ledger.py`, `test_draft.py`, `test_ui_capt
   - `build.ps1` → `dist/Cashing/Cashing.exe` (115 MB, no matplotlib/numpy); the frozen EXE passes the same two smoke runs (43 / 46 checks, empty stderr). `scripts/package_release.py` was **not** run (version unchanged; existing v1.0.0 release kept).
 - Screenshots reviewed during development: `work/shots/*.png` (not committed).
 
+## Follow-up round: edit-state convergence (row only)
+
+Scope limited to `ui/record_row.py` + the `#rowEdit` rules in `ui/theme.py` (+ tests). Editors read as text at rest
+(no underlines except a faint description hint), hover/focus underline only on the active field; time shows `HH:mm`
+and the full date only while focused (`_set_time_format` reopens the date range — QDateTimeEdit pins the range to the
+current date while only time sections are shown); `¥` fixed prefix + `FittedLineEdit` so the amount stays one
+right-anchored unit; category is a bare word with a small chevron; row padding 7 / lines 21+24 → 59 px in Rest and Edit
+(grid spacing 0 — QGridLayout dropped its 1 px row spacing after an edit, which made rows jump 59→58); delete edge
+2 px at 55 % alpha, expands to 36 px `删除` on approach; left bar unchanged (3 px accent). 176 tests, smoke ×2 PASS.
+
 ## Needs human visual acceptance
 
 - Trackpad two-finger horizontal swipe: direction, threshold feel, no interference with vertical scrolling.

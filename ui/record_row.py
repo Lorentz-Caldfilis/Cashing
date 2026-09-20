@@ -16,12 +16,14 @@ from ledger import UNSET
 from ui import theme
 from ui.capture_page import normalize_amount_text
 
-EDGE_ROOM = 44          # right-hand room reserved for the delete edge
-EDGE_COLLAPSED = 3
-EDGE_EXPANDED = 40
+EDGE_ROOM = 44          # right-hand room reserved for the delete edge (hit zone)
+EDGE_COLLAPSED = 2      # the visible strip at rest: a hint, weaker than the left bar
+EDGE_EXPANDED = 36
 ROW_RADIUS = 6
-LINE1_HEIGHT = 22
-LINE2_HEIGHT = 26
+LINE1_HEIGHT = 21       # includes the 1 px gap to line 2: QGridLayout drops its row spacing once
+LINE2_HEIGHT = 24       # hidden editors share the cells, so spacing must not be relied on
+ROW_PADDING = 7         # same in Rest and Edit: the list never jumps
+TIME_SHORT, TIME_FULL = "HH:mm", "yyyy-MM-dd HH:mm"
 AMOUNT_PATTERN = QRegularExpression(r"[0-9]{0,9}(\.[0-9]{0,2})?")
 
 
@@ -117,11 +119,13 @@ class DeleteEdge(QWidget):
         span = min(self._span, self.width())
         rect = QRectF(self.width() - span, 0, span, self.height())
         strong = span > EDGE_COLLAPSED + 6
-        painter.setBrush(QColor(theme.DANGER_TINT if strong else theme.DANGER))
-        painter.drawRoundedRect(rect, 3, 3)
+        rest = QColor(theme.DANGER)
+        rest.setAlphaF(0.55)  # a hint of danger, not a button
+        painter.setBrush(QColor(theme.DANGER_TINT) if strong else rest)
+        painter.drawRoundedRect(rect, 2, 2)
         if strong:
             painter.setPen(QColor(theme.DANGER))
-            painter.setFont(theme.font(13))
+            painter.setFont(theme.font(12))
             painter.drawText(rect, Qt.AlignmentFlag.AlignCenter, "删除")
 
     def mousePressEvent(self, event):
@@ -138,12 +142,30 @@ class CategoryBox(QComboBox):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         pen = QPen(QColor(theme.TEXT_3))
-        pen.setWidthF(1.4)
+        pen.setWidthF(1.2)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(pen)
-        x, y = self.width() - 10.0, self.height() / 2.0 - 1.0
-        painter.drawLine(QPointF(x - 3.5, y - 1.5), QPointF(x, y + 2.0))
-        painter.drawLine(QPointF(x, y + 2.0), QPointF(x + 3.5, y - 1.5))
+        x, y = self.width() - 7.0, self.height() / 2.0 - 0.5
+        painter.drawLine(QPointF(x - 2.8, y - 1.4), QPointF(x, y + 1.4))
+        painter.drawLine(QPointF(x, y + 1.4), QPointF(x + 2.8, y - 1.4))
+
+
+class FittedLineEdit(QLineEdit):
+    """A line edit as wide as its text, so ¥ and the number stay one right-anchored unit."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.textChanged.connect(self.updateGeometry)
+
+    def sizeHint(self):
+        metrics = QFontMetrics(self.font())
+        # 2 px padding per side, QLineEdit's own 2 px margins, one caret: keep ¥ tight against the digits
+        width = max(metrics.horizontalAdvance(self.text()), metrics.horizontalAdvance("0.00")) + 9
+        return QSize(width, self.height())
+
+    def minimumSizeHint(self):
+        return self.sizeHint()
 
 
 class RecordRow(QWidget):
@@ -165,9 +187,9 @@ class RecordRow(QWidget):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.grid = QGridLayout(self)
-        self.grid.setContentsMargins(12, 9, 12 + EDGE_ROOM, 9)
+        self.grid.setContentsMargins(12, ROW_PADDING, 12 + EDGE_ROOM, ROW_PADDING)
         self.grid.setHorizontalSpacing(16)
-        self.grid.setVerticalSpacing(2)
+        self.grid.setVerticalSpacing(0)
         self.time = QLabel()
         self.time.setFont(theme.font(13, tabular=True))
         self.time.setStyleSheet(f"color: {theme.TEXT_3};")
@@ -229,29 +251,40 @@ class RecordRow(QWidget):
         self.time_edit = QDateTimeEdit()
         self.time_edit.setObjectName("rowEdit")
         self.time_edit.setFont(theme.font(13, tabular=True))
-        self.time_edit.setDisplayFormat("yyyy-MM-dd HH:mm")
+        self.time_edit.setDisplayFormat(TIME_SHORT)  # the day heading already says the date; the full date appears on focus
         self.time_edit.setDateRange(QDate(1900, 1, 1), QDate(9999, 12, 31))
         self.time_edit.setButtonSymbols(QDateTimeEdit.ButtonSymbols.NoButtons)
         self.time_edit.setCalendarPopup(False)
         self.time_edit.setFixedHeight(LINE1_HEIGHT)
         self.time_edit.setAccessibleName("消费时间")
         self.grid.addWidget(self.time_edit, 0, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self.amount_edit = QLineEdit()
+        # ¥ is a fixed prefix; the user edits only the number.
+        self.amount_unit = QWidget()
+        self.amount_unit.setFixedHeight(LINE1_HEIGHT)
+        unit = QHBoxLayout(self.amount_unit)
+        unit.setContentsMargins(0, 0, 0, 0)
+        unit.setSpacing(0)
+        self.amount_currency = QLabel("¥")
+        self.amount_currency.setFont(theme.font(17, theme.MEDIUM))
+        self.amount_currency.setStyleSheet(f"color: {theme.TEXT_2};")
+        unit.addWidget(self.amount_currency, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.amount_edit = FittedLineEdit()
         self.amount_edit.setObjectName("rowEdit")
         self.amount_edit.setFont(theme.font(17, theme.MEDIUM, tabular=True))
         self.amount_edit.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.amount_edit.setValidator(QRegularExpressionValidator(AMOUNT_PATTERN, self))
         self.amount_edit.setMaxLength(12)
         self.amount_edit.setFixedHeight(LINE1_HEIGHT)
-        self.amount_edit.setFixedWidth(150)
         self.amount_edit.setAccessibleName("金额")
-        self.grid.addWidget(self.amount_edit, 0, 1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        unit.addWidget(self.amount_edit, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.grid.addWidget(self.amount_unit, 0, 1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.description_edit = QLineEdit()
         self.description_edit.setObjectName("rowEdit")
         self.description_edit.setFont(theme.font(16))
         self.description_edit.setMaxLength(MAX_DESCRIPTION)
         self.description_edit.setPlaceholderText("做了什么？")
         self.description_edit.setFixedHeight(LINE2_HEIGHT)
+        self.description_edit.setProperty("field", "description")  # the one field with a faint rest hint
         self.description_edit.setAccessibleName("说明")
         self.grid.addWidget(self.description_edit, 1, 0)
         self.category_box = CategoryBox()
@@ -261,8 +294,9 @@ class RecordRow(QWidget):
         self.category_box.setFixedHeight(LINE2_HEIGHT)
         self.category_box.setAccessibleName("分类")
         self.grid.addWidget(self.category_box, 1, 1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        for editor in (self.time_edit, self.amount_edit, self.description_edit, self.category_box):
+        for editor in (self.time_edit, self.amount_unit, self.description_edit, self.category_box):
             editor.hide()
+        for editor in (self.time_edit, self.amount_edit, self.description_edit, self.category_box):
             editor.installEventFilter(self)
         QWidget.setTabOrder(self.amount_edit, self.description_edit)
         QWidget.setTabOrder(self.description_edit, self.time_edit)
@@ -272,13 +306,23 @@ class RecordRow(QWidget):
         self.time_edit.editingFinished.connect(lambda: self.commit("time"))
         self.category_box.currentIndexChanged.connect(lambda _: self.commit("category"))
 
+    def _set_time_format(self, fmt):
+        """QDateTimeEdit pins its date range to the current date while only time sections are
+        shown; the full format must reopen the range before any other date can be set."""
+        self.time_edit.setDisplayFormat(fmt)
+        if fmt == TIME_FULL:
+            self.time_edit.setDateRange(QDate(1900, 1, 1), QDate(9999, 12, 31))
+
     def _load_editors(self):
         record = self.record
         for editor in (self.time_edit, self.amount_edit, self.description_edit, self.category_box):
             editor.blockSignals(True)
         self.amount_edit.setText(cents_to_input(record["amount_cents"]))
         self.description_edit.setText(record["description"])
+        self._set_time_format(TIME_FULL)
         self.time_edit.setDateTime(QDateTime.fromString(record["datetime"], "yyyy-MM-dd HH:mm"))
+        if not self.time_edit.hasFocus():
+            self._set_time_format(TIME_SHORT)
         category = record["category"]
         self.category_box.setCurrentIndex(CATEGORIES.index(category) if category in CATEGORIES else len(CATEGORIES))
         for editor in (self.time_edit, self.amount_edit, self.description_edit, self.category_box):
@@ -290,7 +334,7 @@ class RecordRow(QWidget):
         self._load_editors()
         self.editing = True
         self.hint.hide()
-        for label, editor in ((self.time, self.time_edit), (self.amount, self.amount_edit),
+        for label, editor in ((self.time, self.time_edit), (self.amount, self.amount_unit),
                               (self.description, self.description_edit), (self.category, self.category_box)):
             label.hide()
             editor.show()
@@ -308,7 +352,7 @@ class RecordRow(QWidget):
     def _leave_edit_state(self):
         self.editing = False
         self._committing = True
-        for label, editor in ((self.time, self.time_edit), (self.amount, self.amount_edit),
+        for label, editor in ((self.time, self.time_edit), (self.amount, self.amount_unit),
                               (self.description, self.description_edit), (self.category, self.category_box)):
             editor.hide()
             label.show()
@@ -391,6 +435,12 @@ class RecordRow(QWidget):
 
     # ---- events ----------------------------------------------------------------
     def eventFilter(self, watched, event):
+        if watched is getattr(self, "time_edit", None):
+            if event.type() == QEvent.Type.FocusIn and self.time_edit.displayFormat() != TIME_FULL:
+                self._set_time_format(TIME_FULL)
+                self.time_edit.setCurrentSection(QDateTimeEdit.Section.HourSection)
+            elif event.type() == QEvent.Type.FocusOut and self.time_edit.displayFormat() != TIME_SHORT:
+                self._set_time_format(TIME_SHORT)
         if event.type() == QEvent.Type.KeyPress:
             key = event.key()
             if key == Qt.Key.Key_Escape:
@@ -442,7 +492,7 @@ class RecordRow(QWidget):
         self.update()
 
     def _place_edge(self):
-        self.edge.setGeometry(self.width() - EDGE_ROOM - 4, 6, EDGE_ROOM, max(0, self.height() - 12))
+        self.edge.setGeometry(self.width() - EDGE_ROOM - 4, 8, EDGE_ROOM, max(0, self.height() - 16))
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -458,4 +508,4 @@ class RecordRow(QWidget):
         painter.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), ROW_RADIUS, ROW_RADIUS)
         if self.editing:
             painter.setBrush(QColor(theme.ACCENT))
-            painter.drawRoundedRect(QRectF(0, 6, 3, self.height() - 12), 1.5, 1.5)
+            painter.drawRoundedRect(QRectF(0, 5, 3, self.height() - 10), 1.5, 1.5)

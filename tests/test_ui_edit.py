@@ -70,7 +70,7 @@ def test_enter_commits_and_leaves_edit(page, qtbot, database):
     qtbot.keyClick(row.amount_edit, Qt.Key.Key_Return)
     assert not row.editing and page.editing_row is None
     assert database.get_record(row.record["id"])["amount_cents"] == 3000
-    assert row.amount.text() == "¥30.00" and not row.amount.isHidden() and row.amount_edit.isHidden()
+    assert row.amount.text() == "¥30.00" and not row.amount.isHidden() and row.amount_unit.isHidden()
     assert page.summary.total.text() == "125.00"
     assert page.summary.lines["生活"].amount.text() == "¥30.00"
 
@@ -159,6 +159,7 @@ def test_category_changes_at_once_including_back_to_unknown(page, qtbot, databas
 def test_edit_time_across_month_moves_the_record(page, qtbot, database):
     row = page.rows()[1]
     click(qtbot, row, "time")
+    assert row.time_edit.hasFocus()  # focused: the full date is shown and any date may be entered
     row.time_edit.setDateTime(datetime(2026, 10, 1, 0, 0))
     row.time_edit.editingFinished.emit()
     assert row.editing  # still editing; the summary is already honest
@@ -247,3 +248,41 @@ def test_escape_from_the_page_cancels_the_edit(page, qtbot):
     row.amount_edit.setText("-")
     qtbot.keyClick(row, Qt.Key.Key_Escape)
     assert not row.editing and row.amount.text() == "¥28.50"
+
+
+def settled_geometry(page, row, qtbot):
+    """Force the lazy layout passes to finish (Qt applies nested LayoutRequests one loop turn at a time)."""
+    page.history.layout().activate()
+    qtbot.wait(20)
+    page.history.layout().activate()
+    return (row.height(), row.y(), page.rows()[1].y())
+
+
+def test_edit_keeps_the_row_height_and_reads_as_the_same_record(page, qtbot):
+    row = page.rows()[0]
+    before = settled_geometry(page, row, qtbot)
+    click(qtbot, row, "description")
+    assert settled_geometry(page, row, qtbot) == before  # entering Edit moves nothing
+    # Fields read as text: no underline at rest except the faint description hint; ¥ is a fixed prefix.
+    assert row.amount_currency.text() == "¥" and row.amount_edit.text() == "28.50"
+    assert row.description_edit.property("field") == "description"
+    assert row.time_edit.displayFormat() == "HH:mm" and row.time_edit.text() == "18:42"
+    assert row.edge.span() == EDGE_COLLAPSED and EDGE_COLLAPSED <= 3
+    qtbot.keyClick(row.description_edit, Qt.Key.Key_Escape)
+    assert settled_geometry(page, row, qtbot) == before
+
+
+def test_time_shows_the_short_form_and_the_full_date_only_while_focused(page, qtbot, database):
+    row = page.rows()[0]
+    click(qtbot, row, "description")
+    assert row.time_edit.text() == "18:42"
+    row.time_edit.setFocus()
+    assert row.time_edit.displayFormat() == "yyyy-MM-dd HH:mm"
+    assert row.time_edit.text() == "2026-09-20 18:42"  # the date is still there and editable
+    row.time_edit.setDateTime(datetime(2026, 9, 19, 9, 5))
+    row.description_edit.setFocus()  # leaving the field commits it and returns to the short form
+    assert row.time_edit.displayFormat() == "HH:mm" and row.time_edit.text() == "09:05"
+    assert database.get_record(row.record["id"])["datetime"] == "2026-09-19 09:05"
+    press_outside(page)
+    assert page.editing_row is None
+    assert [r.record["description"] for r in page.rows()][-1] == "晚饭"  # re-sorted into 9 月 19 日
