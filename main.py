@@ -43,7 +43,7 @@ def main(argv=None):
         database = Database(directory / ("smoke-ledger.sqlite3" if args.smoke_test else "ledger.sqlite3"))
         database.initialize_database()
         from ui.main_window import MainWindow
-        window = MainWindow(database)
+        window = MainWindow(database, directory)
     except (OSError, ValueError, DatabaseError) as exc:
         logging.exception("Startup failed")
         if not args.smoke_test:

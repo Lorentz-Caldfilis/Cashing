@@ -21,7 +21,7 @@ def window(qtbot,database):
 
 def test_failed_delete_retains_record_and_totals(window,database,qtbot,monkeypatch):
     database.add_record(567,datetime(2026,9,1),"工具")
-    p=window.records_page
+    p=window.review
     september(p)
     p.table.selectRow(0)
     def answer():
@@ -38,40 +38,38 @@ def test_failed_delete_retains_record_and_totals(window,database,qtbot,monkeypat
 
 def test_keyboard_flow_and_no_duplicate_signals(window,qtbot,database):
     for _ in range(8):
-        window.navigation.setCurrentRow(1)
-        window.navigation.setCurrentRow(0)
-    form=window.input_page.form
-    form.amount.setFocus()
-    qtbot.keyClicks(form.amount,"12.34")
-    form.when.setDateTime(QDateTime.fromString("2026-09-19 22:15","yyyy-MM-dd HH:mm"))
-    form.description.setFocus()
-    qtbot.keyClicks(form.description,"one")
-    qtbot.keyClick(form.description,Qt.Key.Key_Return)
+        window.switch_to(1)
+        window.switch_to(0)
+    capture=window.capture
+    capture.amount.setFocus()
+    qtbot.keyClicks(capture.amount,"12.34")
+    capture.set_time(datetime(2026,9,19,22,15))
+    capture.description.setFocus()
+    qtbot.keyClicks(capture.description,"one")
+    qtbot.keyClick(capture.description,Qt.Key.Key_Return)
     assert len(database.get_records_by_month(2026,9))==1
-    assert form.amount.hasFocus()
-    qtbot.keyClick(form.amount,Qt.Key.Key_Tab)
-    assert QApplication.focusWidget() in (form.when,form.when.lineEdit())
+    assert capture.amount.hasFocus()
     assert len(window.findChildren(FigureCanvasQTAgg))==1
 
 
 def test_table_resize_preserves_long_text_visibility(window,database,qtbot):
     database.add_record(1234,datetime(2026,9,1),"生活","很长的中文说明"*24)
-    window.navigation.setCurrentRow(1)
-    september(window.records_page)
+    window.switch_to(1)
+    september(window.review)
     window.resize(1180,780)
     qtbot.wait(120)
     window.resize(900,600)
     qtbot.wait(160)
-    table=window.records_page.table
+    table=window.review.table
     assert table.rowHeight(0)>=table.sizeHintForRow(0)
     table.selectRow(0)
-    assert window.records_page.description.toPlainText()=="很长的中文说明"*24
+    assert window.review.description.toPlainText()=="很长的中文说明"*24
 
 
 def test_mouse_double_click_edit_and_cancel(window,database,qtbot):
     database.add_record(1,datetime(2026,9,1),"生活")
-    window.navigation.setCurrentRow(1)
-    p=window.records_page
+    window.switch_to(1)
+    p=window.review
     september(p)
     seen=[]
     def reject():
@@ -93,8 +91,8 @@ def test_mouse_double_click_edit_and_cancel(window,database,qtbot):
 
 def test_context_menu_opens_edit(window,database,qtbot):
     database.add_record(1,datetime(2026,9,1),"生活")
-    window.navigation.setCurrentRow(1)
-    p=window.records_page
+    window.switch_to(1)
+    p=window.review
     september(p)
     seen=[]
     def choose():
@@ -115,8 +113,8 @@ def test_context_menu_opens_edit(window,database,qtbot):
 def test_widget_and_figure_destroyed_after_close(database,qtbot):
     window=MainWindow(database)
     window.show()
-    figure=weakref.ref(window.records_page.chart.figure)
-    canvas=weakref.ref(window.records_page.chart.canvas)
+    figure=weakref.ref(window.review.chart.figure)
+    canvas=weakref.ref(window.review.chart.canvas)
     window.close()
     window.deleteLater()
     QCoreApplication.sendPostedEvents(None,QEvent.Type.DeferredDelete)

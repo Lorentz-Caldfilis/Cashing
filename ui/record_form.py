@@ -53,5 +53,5 @@ class RecordForm(QWidget):
         cents = record["amount_cents"]
         self.amount.setText(f"{cents // 100}.{cents % 100:02d}")
         self.when.setDateTime(QDateTime.fromString(record["datetime"], "yyyy-MM-dd HH:mm"))
-        self.category.setCurrentText(record["category"])
+        self.category.setCurrentText(record["category"] or CATEGORIES[0])  # interim until in-place edit (M5)
         self.description.setText(record["description"])

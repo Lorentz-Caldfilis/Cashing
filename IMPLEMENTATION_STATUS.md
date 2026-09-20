@@ -9,7 +9,7 @@ A new session must be able to resume from this file + git history + `docs/design
 | # | Milestone | State |
 |---|-----------|-------|
 | 1 | Spec audit + minimal core architecture (schema v2, migration, ledger service, draft store, classification interface) | **done** |
-| 2 | Capture rebuild (amount hero, description, weak time + popover, 记录, Enter flow, save/undo toast, local errors) | pending |
+| 2 | Capture rebuild (amount hero, description, weak time + popover, 记录, Enter flow, save/undo toast, local errors) | **done** |
 | 3 | Capture ⇄ Review spaces + horizontal page switching (dots, edges, Alt+←/→, trackpad wheel) | pending |
 | 4 | Review Summary + History (month nav, total, three categories, donut, day groups) | pending |
 | 5 | In-place edit, PC delete edge, delete/undo | pending |
@@ -18,7 +18,7 @@ A new session must be able to resume from this file + git history + `docs/design
 
 ## Current phase
 
-Milestone 1 complete. Next: Milestone 2 (Capture).
+Milestone 2 complete. Next: Milestone 3 (space switcher: slide animation, dots, edges, Alt+←/→, trackpad wheel).
 
 ## Audit result (M1): gaps between v1.0.0 and the frozen spec
 
@@ -36,9 +36,19 @@ Milestone 1 complete. Next: Milestone 2 (Capture).
 - `draft.py`: `Draft` + `DraftStore` (JSON file `draft.json` in the data directory; never in the DB).
 - Tests: `tests/test_migration.py`, `tests/test_ledger.py`, `tests/test_draft.py`; existing tests updated for the rename (`饮食`→`生活`) and the `unknown` total key. Old UI tests still pass against the old UI (interim).
 
+## Done in M2 (files)
+
+- `ui/theme.py`: PC Light tokens (neutrals, slate accent, category greens/blues/ambers, danger), `font(px, weight, tabular)`, global stylesheet. **Rule:** never put `font-size`/`font-family` on `QWidget` in QSS — it overrides `setFont` and flattened the type scale once already; the app base font is set programmatically (`theme.BASE_PX`).
+- `ui/toast.py`: bottom-centre overlay, fade-in, auto-dismiss (5 s / 8 s danger), single `撤销` action; a new toast expires the previous undo.
+- `ui/capture_page.py`: `AmountEdit` (width follows the number so ¥+number stay centred; validator; static formatting only on focus-out/save), description (no chrome, focus underline, `做了什么？`), weak time button + `TimePopover` (Qt.Popup, QDateTimeEdit + 现在), `记录` (disabled while amount empty), local `amount_error` / `save_error(+detail)`. Enter path: amount → description → record; empty description records. Save clears only after the ledger confirmed. Undo deletes the record and restores amount text / description / time. `draft()` / `restore_draft()` / `focus_default()`.
+- `ui/main_window.py`: rewritten shell (title `Cashing`, no sidebar/status bar/brand), hosts Capture + the *old* `RecordsPage` (interim) in a `QStackedWidget`; Alt+←/→ switch; draft saved on close, restored on start. `main.py` now passes the data directory.
+- Tests: `tests/test_ui_capture.py` (17 cases). Old `test_ui.py` / `test_ui_audit.py` trimmed to the Review parts and pointed at `window.review` (interim).
+- Gotcha recorded: `QTest.keyClicks` with CJK text hard-crashes the native Windows QPA (fine offscreen) — tests type ASCII or use `setText` for CJK.
+
 ## Spec items implemented so far
 
 - Store facts, derive interpretation; unknown category allowed and never a task (domain/db level).
+- Capture (IA §5, Interaction §2–§9, VDS §10/§11/§21, Amendments §1): default focus, Enter path, no category control, weak time with light editor, write-before-clear, stay in Capture, toast + undo restoring input, local errors, draft on close.
 - Backward-compatible migration with tests (real user ledger at `%LOCALAPPDATA%\Cashing\ledger.sqlite3` was inspected via a copy only: schema v1, 0 records).
 
 ## Not yet implemented
@@ -47,13 +57,15 @@ Everything visual/interactive (M2–M6); removal of old UI/matplotlib (M7).
 
 ## Known issues
 
-- Old UI (`ui/input_page.py`, `ui/records_page.py`, `ui/edit_dialog.py`, `ui/record_form.py`) is still wired in `ui/main_window.py` and still asks for a category; it is replaced from M2 on.
+- Interim: the old `RecordsPage`/`EditDialog`/`RecordForm` still serve Review (table, dialogs, matplotlib). `RecordForm.set_record` maps an unknown category to 生活 only so the interim dialog cannot crash; M4/M5 replace all of it. `ui/input_page.py` is now unused (deleted in M7 with the rest).
+- `smoke_check.py` still drives the old UI; rewritten in M7.
 
 ## Tests run
 
 - M1: `pytest --basetemp ./work/pytest-m1b -q` → 132 passed (100 original + 32 new/updated).
+- M2: `PYTHONUTF8=1 pytest --basetemp ./work/pytest-m2 -q` → 148 passed. Native-platform drive script `work/drive_m2.py` (not committed) produced screenshots and confirmed Enter path, toast, undo.
 - Launch check: `python main.py --data-dir D:\Dev\Cashing\work\m1-launch` starts with empty stderr.
 
 ## Resume here
 
-Start Milestone 2: create `ui/theme.py` (tokens + stylesheet), `ui/capture_page.py`, a toast widget; wire `Ledger` into the window; port Capture tests. Keep `main.py` data-dir/smoke isolation intact.
+Start Milestone 3: replace the `QStackedWidget` in `ui/main_window.py` with a sliding `SpaceSwitcher` (180 ms, OutCubic, no overshoot), add `PageDots` overlay (● ○), edge click zones with faint chevrons on hover, trackpad horizontal wheel via an application event filter (threshold + cooldown), keep Alt+←/→; plain ←/→ must stay text-editing keys.

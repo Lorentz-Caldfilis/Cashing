@@ -36,15 +36,9 @@ def september(page):
 
 def test_add_reset_chart_and_navigation(window,qtbot,database):
     for category in CATEGORIES:
-        fill(window.input_page.form,category=category)
-        qtbot.mouseClick(window.input_page.save_button,Qt.MouseButton.LeftButton)
-        assert window.input_page.form.amount.text() == ""
-        assert window.input_page.form.description.text() == ""
-        assert window.input_page.form.category.currentText() == category
-        assert window.input_page.form.when.dateTime().secsTo(QDateTime.currentDateTime()) in range(-2,3)
-        assert "已保存" in window.input_page.feedback.text()
-    window.navigation.setCurrentRow(1)
-    page = window.records_page
+        database.add_record(2850, datetime(2026, 9, 19, 22, 15), category, "晚饭")
+    window.switch_to(1)
+    page = window.review
     september(page)
     assert page.table.rowCount() == 3
     assert page.stat_labels["total"].text() == "¥85.50"
@@ -68,25 +62,9 @@ def test_add_reset_chart_and_navigation(window,qtbot,database):
     assert not page.next.isEnabled()
 
 
-def test_bad_input_and_write_failure_preserve_form(window,qtbot,monkeypatch):
-    form=window.input_page.form
-    for amount in ["", "0", "-1", "NaN","1.234"]:
-        fill(form,amount=amount)
-        window.input_page.save()
-        assert "已保存" not in window.input_page.feedback.text()
-    fill(form)
-    def fail(*args):
-        raise DatabaseError("测试：磁盘不可写")
-    monkeypatch.setattr(window.input_page.database,"add_record",fail)
-    window.input_page.save()
-    assert form.amount.text()=="28.50"
-    assert form.description.text()=="晚饭"
-    assert "磁盘不可写" in window.input_page.feedback.text()
-
-
 def test_edit_across_month(window,database,qtbot):
     database.add_record(100,datetime(2026,9,19),"生活")
-    page=window.records_page
+    page=window.review
     september(page)
     page.table.selectRow(0)
     def edit():
@@ -106,7 +84,7 @@ def test_edit_across_month(window,database,qtbot):
 
 def test_delete_cancel_then_confirm_and_no_selection(window,database,qtbot):
     database.add_record(2850,datetime(2026,9,19),"生活")
-    page=window.records_page
+    page=window.review
     september(page)
     page.edit_selected()
     page.delete_selected()
@@ -130,7 +108,7 @@ def test_delete_cancel_then_confirm_and_no_selection(window,database,qtbot):
 def test_long_plain_description(window,database):
     text="<b>普通文本</b>"+"中"*185
     database.add_record(1,datetime(2026,9,19),"生活",text)
-    page=window.records_page
+    page=window.review
     september(page)
     page.table.selectRow(0)
     assert page.description.toPlainText()==text
@@ -139,7 +117,7 @@ def test_long_plain_description(window,database):
 
 def test_refresh_reuses_figure_and_failure_never_looks_empty(window,database,monkeypatch):
     database.add_record(100,datetime(2026,9,19),"生活")
-    page=window.records_page
+    page=window.review
     september(page)
     figure,axes,canvas=page.chart.figure,page.chart.axes,page.chart.canvas
     for _ in range(60):

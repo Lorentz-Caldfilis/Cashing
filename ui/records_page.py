@@ -57,8 +57,8 @@ class PieChart(QWidget):
             percent = totals[category] * 100 / total if total else 0
             self.legend[category].setText(
                 "<0.1%" if 0 < percent < 0.1 else f"{percent:.1f}%")
-        if total:
-            active = [(totals[c], color) for c, color in zip(CATEGORIES, COLORS) if totals[c]]
+        active = [(totals[c], color) for c, color in zip(CATEGORIES, COLORS) if totals[c]]
+        if total and active:  # interim: unknown-only months draw nothing (replaced in M4)
             self.axes.pie(
                 [amount for amount, _ in active], colors=[color for _, color in active],
                 startangle=90, counterclock=False,
