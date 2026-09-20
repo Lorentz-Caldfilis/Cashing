@@ -3,7 +3,6 @@ from datetime import datetime
 import socket
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication
 from database import DatabaseError
 from draft import DraftStore
 from ui.main_window import MainWindow

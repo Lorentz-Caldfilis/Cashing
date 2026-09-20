@@ -20,8 +20,7 @@ def sha256(path):
 def main():
     required = ["Cashing.exe", "_internal/python314.dll",
                 "_internal/PySide6/plugins/platforms/qwindows.dll",
-                "_internal/PySide6/translations/qtbase_zh_CN.qm",
-                "_internal/matplotlib/mpl-data/matplotlibrc"]
+                "_internal/PySide6/translations/qtbase_zh_CN.qm"]
     for name in required:
         if not (SOURCE/name).is_file():
             raise RuntimeError(f"Missing runtime file: {name}")
@@ -40,11 +39,9 @@ def main():
     licenses.mkdir(exist_ok=True)
     notices = ["Cashing v1.0.0 third-party dependency notices",
                "The following license declarations are copied from installed package metadata.",
-               "Python/Qt/Matplotlib are bundled as separate runtime libraries; do not remove _internal.",
+               "Python and Qt are bundled as separate runtime libraries; do not remove _internal.",
                ""]
-    packages = ["PySide6","PySide6_Essentials","PySide6_Addons","shiboken6","matplotlib","numpy",
-                "pillow","contourpy","cycler","fonttools","kiwisolver","packaging","pyparsing",
-                "python-dateutil","six"]
+    packages = ["PySide6","PySide6_Essentials","PySide6_Addons","shiboken6"]
     for name in packages:
         dist = metadata.distribution(name)
         license_text = dist.metadata.get("License-Expression") or dist.metadata.get("License") or "See supplied license files"

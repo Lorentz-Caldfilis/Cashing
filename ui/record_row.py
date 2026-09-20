@@ -5,7 +5,6 @@ delete edge appears on the right) → Delete Armed (the edge expands). Edits
 take effect as soon as a field is left; an invalid field is explained under
 the row and blocks leaving. Nothing here floats or casts a shadow.
 """
-from datetime import datetime
 from PySide6.QtCore import Qt, Signal, QRectF, QSize, QEvent, QVariantAnimation, QEasingCurve, QDateTime, QDate, QRegularExpression, QPointF
 from PySide6.QtGui import QPainter, QColor, QPen, QFontMetrics, QRegularExpressionValidator
 from PySide6.QtWidgets import (

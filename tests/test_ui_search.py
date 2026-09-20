@@ -1,8 +1,8 @@
 """Search is a temporary Review state across all history; Utility is a quiet ⋮, never a third space."""
 from datetime import datetime
 import pytest
-from PySide6.QtCore import Qt, QCoreApplication, QPoint
-from PySide6.QtWidgets import QApplication, QMenu
+from PySide6.QtCore import Qt, QCoreApplication
+from PySide6.QtWidgets import QMenu
 from ui.main_window import MainWindow, CAPTURE, REVIEW
 from ui.record_row import DayHeading
 

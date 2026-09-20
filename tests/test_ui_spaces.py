@@ -1,6 +1,6 @@
 """Capture ⇄ Review: fixed left/right relation, dots, edges, Alt+arrows, trackpad wheel; no wrap."""
 import pytest
-from PySide6.QtCore import Qt, QPoint, QPointF, QEvent
+from PySide6.QtCore import Qt, QPoint, QPointF
 from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import QApplication
 from ui.main_window import MainWindow, CAPTURE, REVIEW

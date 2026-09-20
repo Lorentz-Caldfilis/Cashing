@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-# Onedir avoids extraction at startup; release.py adds dependency license files.
+# Onedir avoids extraction at startup; scripts/package_release.py adds dependency license files.
 from pathlib import Path
 from PySide6.QtCore import QLibraryInfo
 
@@ -7,8 +7,8 @@ translation = Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath))
 datas = [(str(translation), "PySide6/translations")] if translation.exists() else []
 a = Analysis(
     ["main.py"], pathex=[], binaries=[], datas=datas,
-    hiddenimports=["matplotlib.backends.backend_qtagg"],
-    hookspath=[], hooksconfig={"matplotlib": {"backends": ["QtAgg"]}},
+    hiddenimports=[],
+    hookspath=[], hooksconfig={},
     runtime_hooks=[], excludes=["tkinter", "PyQt5", "PyQt6", "PySide2"], noarchive=False,
 )
 pyz = PYZ(a.pure)

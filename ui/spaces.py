@@ -6,7 +6,7 @@ the spaces; a horizontal trackpad scroll does too. Plain ←/→ are never used 
 they belong to text editing.
 """
 import time
-from PySide6.QtCore import Qt, QObject, QEvent, QPropertyAnimation, QEasingCurve, Property, Signal, QRectF, QSize
+from PySide6.QtCore import Qt, QObject, QEvent, QPropertyAnimation, QEasingCurve, Property, Signal, QRectF
 from PySide6.QtGui import QPainter, QColor, QPen, QPainterPath
 from PySide6.QtWidgets import QWidget, QApplication
 from ui import theme

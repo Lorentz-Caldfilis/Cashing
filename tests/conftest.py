@@ -3,7 +3,6 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-os.environ["MPLCONFIGDIR"] = str(ROOT / "work" / "mpl-test")
 os.environ["QT_API"] = "pyside6"
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
