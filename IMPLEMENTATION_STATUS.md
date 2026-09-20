@@ -10,7 +10,7 @@ A new session must be able to resume from this file + git history + `docs/design
 |---|-----------|-------|
 | 1 | Spec audit + minimal core architecture (schema v2, migration, ledger service, draft store, classification interface) | **done** |
 | 2 | Capture rebuild (amount hero, description, weak time + popover, 记录, Enter flow, save/undo toast, local errors) | **done** |
-| 3 | Capture ⇄ Review spaces + horizontal page switching (dots, edges, Alt+←/→, trackpad wheel) | pending |
+| 3 | Capture ⇄ Review spaces + horizontal page switching (dots, edges, Alt+←/→, trackpad wheel) | **done** |
 | 4 | Review Summary + History (month nav, total, three categories, donut, day groups) | pending |
 | 5 | In-place edit, PC delete edge, delete/undo | pending |
 | 6 | Search, Utility (⋮), Draft persistence | pending |
@@ -18,7 +18,7 @@ A new session must be able to resume from this file + git history + `docs/design
 
 ## Current phase
 
-Milestone 2 complete. Next: Milestone 3 (space switcher: slide animation, dots, edges, Alt+←/→, trackpad wheel).
+Milestone 3 complete. Next: Milestone 4 (Review Summary + History: new `ui/review_page.py`, QPainter donut, day-grouped rows; replaces the interim `RecordsPage`).
 
 ## Audit result (M1): gaps between v1.0.0 and the frozen spec
 
@@ -45,10 +45,17 @@ Milestone 2 complete. Next: Milestone 3 (space switcher: slide animation, dots, 
 - Tests: `tests/test_ui_capture.py` (17 cases). Old `test_ui.py` / `test_ui_audit.py` trimmed to the Review parts and pointed at `window.review` (interim).
 - Gotcha recorded: `QTest.keyClicks` with CJK text hard-crashes the native Windows QPA (fine offscreen) — tests type ASCII or use `setText` for CJK.
 
+## Done in M3 (files)
+
+- `ui/spaces.py`: `SpaceSwitcher` (pages side by side in a strip; `offset` property animated 180 ms OutCubic, no overshoot; resize re-aligns), `PageDots` (● ○, clickable, NoFocus), `EdgeZone` (28 px strip, faint chevron only on hover, click switches; only the edge that leads somewhere is shown), `WheelNavigator` (application event filter: dominant horizontal `angleDelta().x()` accumulated to 150 units within a 0.3 s gesture → switch, then 0.5 s cooldown; vertical untouched; ignored while a popup is open; negative dx = content follows fingers = go right).
+- `ui/main_window.py`: uses the switcher; overlays (dots, edges, toast) are children of the central widget, repositioned in `_update_overlays`; `switch_to(index)` clamps (no wrap), returns False when already there; Alt+←/→ shortcuts; plain ←/→ untouched (text editing).
+- Tests: `tests/test_ui_spaces.py` (8 cases). Native drive `work/drive_m3.py` confirmed the slide (mid-frame offset 745/900) and focus return to the amount.
+
 ## Spec items implemented so far
 
 - Store facts, derive interpretation; unknown category allowed and never a task (domain/db level).
 - Capture (IA §5, Interaction §2–§9, VDS §10/§11/§21, Amendments §1): default focus, Enter path, no category control, weak time with light editor, write-before-clear, stay in Capture, toast + undo restoring input, local errors, draft on close.
+- Two spaces, fixed left/right relation, no wrap, wordless dots, edge click, Alt+←/→, trackpad horizontal wheel, short non-elastic slide (IA §3, Interaction §19–§21, §24, Amendments §8).
 - Backward-compatible migration with tests (real user ledger at `%LOCALAPPDATA%\Cashing\ledger.sqlite3` was inspected via a copy only: schema v1, 0 records).
 
 ## Not yet implemented
@@ -63,9 +70,10 @@ Everything visual/interactive (M2–M6); removal of old UI/matplotlib (M7).
 ## Tests run
 
 - M1: `pytest --basetemp ./work/pytest-m1b -q` → 132 passed (100 original + 32 new/updated).
-- M2: `PYTHONUTF8=1 pytest --basetemp ./work/pytest-m2 -q` → 148 passed. Native-platform drive script `work/drive_m2.py` (not committed) produced screenshots and confirmed Enter path, toast, undo.
+- M2: `PYTHONUTF8=1 pytest --basetemp ./work/pytest-m2 -q` → 148 passed.
+- M3: `PYTHONUTF8=1 pytest --basetemp ./work/pytest-m3 -q` → 156 passed. Native-platform drive script `work/drive_m2.py` (not committed) produced screenshots and confirmed Enter path, toast, undo.
 - Launch check: `python main.py --data-dir D:\Dev\Cashing\work\m1-launch` starts with empty stderr.
 
 ## Resume here
 
-Start Milestone 3: replace the `QStackedWidget` in `ui/main_window.py` with a sliding `SpaceSwitcher` (180 ms, OutCubic, no overshoot), add `PageDots` overlay (● ○), edge click zones with faint chevrons on hover, trackpad horizontal wheel via an application event filter (threshold + cooldown), keep Alt+←/→; plain ←/→ must stay text-editing keys.
+Start Milestone 4: write `ui/review_page.py` — fixed header (‹ 2026 年 9 月 › centred; › disabled at the current month; label click = back to this month), scrollable body: total `¥ 2,438.50` (neutral, 40 px Medium), three categories as a compact list with small colour dots + right-aligned tabular amounts (+ a very weak `暂未判断 ¥X` line only when non-zero), a QPainter donut (~110 px, no centre text, no empty ring: `本月暂无记录`), history grouped by day (`9 月 20 日 星期日`), rows = two lines (time/amount, description/category), no per-row separators. Use `Ledger.month()`. Swap it into `MainWindow` for the old `RecordsPage`; port `test_ui.py`/`test_ui_audit.py` Review tests to the new page (`window.review`). Trackpad wheel direction and edge chevrons still need human validation.

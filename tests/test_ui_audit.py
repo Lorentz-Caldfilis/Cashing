@@ -113,6 +113,7 @@ def test_context_menu_opens_edit(window,database,qtbot):
 def test_widget_and_figure_destroyed_after_close(database,qtbot):
     window=MainWindow(database)
     window.show()
+    QCoreApplication.processEvents()  # let the canvas' own draw_idle single-shot fire, as in a real session
     figure=weakref.ref(window.review.chart.figure)
     canvas=weakref.ref(window.review.chart.canvas)
     window.close()

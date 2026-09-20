@@ -29,7 +29,7 @@ def stored(database):
 
 
 def test_startup_focus_is_the_amount(window):
-    assert window.spaces.currentIndex() == 0
+    assert window.current_index() == 0
     assert window.capture.amount.hasFocus()
     assert not window.capture.record_button.isEnabled()
 
@@ -48,7 +48,7 @@ def test_enter_path_amount_then_description_then_record(window, qtbot, database)
     assert capture.amount.text() == "" and capture.description.text() == ""
     assert capture.amount.hasFocus()
     assert capture.time_is_auto()
-    assert window.spaces.currentIndex() == 0  # stays in Capture
+    assert window.current_index() == 0  # stays in Capture
     assert window.toast.isVisible() and window.toast.label.text() == "已记录 ¥28.50 · 晚饭"
     assert window.toast.can_undo()
 
@@ -181,7 +181,7 @@ def test_unsaved_input_survives_a_page_switch(window):
     capture.amount.setText("28.5")
     capture.description.setText("晚饭")
     window.switch_to(1)
-    assert window.spaces.currentIndex() == 1
+    assert window.current_index() == 1
     window.switch_to(0)
     # Leaving the field formatted the amount statically; nothing was saved or cleared.
     assert capture.amount.text() == "28.50" and capture.description.text() == "晚饭"
