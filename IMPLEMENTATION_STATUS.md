@@ -13,12 +13,12 @@ A new session must be able to resume from this file + git history + `docs/design
 | 3 | Capture ⇄ Review spaces + horizontal page switching (dots, edges, Alt+←/→, trackpad wheel) | **done** |
 | 4 | Review Summary + History (month nav, total, three categories, donut, day groups) | **done** |
 | 5 | In-place edit, PC delete edge, delete/undo | **done** |
-| 6 | Search, Utility (⋮), Draft persistence | pending |
+| 6 | Search, Utility (⋮), Draft persistence | **done** |
 | 7 | Full tests, real launch verification, cleanup (remove old UI, matplotlib, smoke check rewrite, README) | pending |
 
 ## Current phase
 
-Milestone 5 complete. Next: Milestone 6 (Search as a Review state, Utility ⋮ overlay with 数据/关于, draft already done in M2 — verify end to end).
+Milestone 6 complete. Next: Milestone 7 (cleanup: delete old UI files + matplotlib, rewrite smoke_check.py, packaging config, README; full tests; real launch + restart verification; final report).
 
 ## Audit result (M1): gaps between v1.0.0 and the frozen spec
 
@@ -65,10 +65,19 @@ Milestone 5 complete. Next: Milestone 6 (Search as a Review state, Utility ⋮ o
 - `ui/main_window.py`: `switch_to(CAPTURE)` refuses while an edit is invalid. `ui/theme.py`: `#rowEdit` styles.
 - Tests: `tests/test_ui_edit.py` (14 cases). Native drive `work/drive_m5.py` confirmed edit → commit → delete → undo.
 
+## Done in M6 (files)
+
+- `ui/review_page.py`: header = `QStackedWidget` (month row | search row) + `SearchGlyph` (painted magnifier, hidden while searching). `enter_search()` (glyph, Ctrl+F in Review) only after `leave()`; saves scroll, hides summary, clears rows, focuses the field. Live search debounced 150 ms → `Ledger.search` across all history, day groups with year headings, `没有找到“…”相关记录` when empty; read failure reported. Results use the same edit/delete/undo machinery and `refresh()` re-runs the search so the context is kept. `exit_search()` (×, Esc with no edit) restores month + scroll. `prepare_leave()` = leave edit (refuse if invalid) then exit search; `MainWindow.switch_to(CAPTURE)` uses it.
+- `ui/main_window.py`: `⋮` `QToolButton#utility` overlay top-right on both spaces, InstantPopup `QMenu`: `打开数据目录` (QDesktopServices) and `关于 Cashing` (QMessageBox.about with version + ledger path). No settings.
+- `ui/theme.py`: `#search`, `#searchGlyph` styles.
+- Tests: `tests/test_ui_search.py` (6 cases). Native drive `work/drive_m6.py` checked the search header and cross-year results.
+- Draft: implemented in M2 (`draft.py`, Capture `draft()/restore_draft()`, window close/start); real-process restart check is part of M7.
+
 ## Spec items implemented so far
 
 - Store facts, derive interpretation; unknown category allowed and never a task (domain/db level).
 - Capture (IA §5, Interaction §2–§9, VDS §10/§11/§21, Amendments §1): default focus, Enter path, no category control, weak time with light editor, write-before-clear, stay in Capture, toast + undo restoring input, local errors, draft on close.
+- Search as a temporary Review state across all history, editable results that keep the context, exit restores month + scroll, leaving the space exits search (IA §12, Interaction §17–§18); Utility as a low-presence ⋮ with 数据/关于 only (IA §14).
 - In-place Edit / Delete Armed / Undo (IA §10–§11, Interaction §12–§16, §23–§25, Amendments §5–§7): click to edit in place, legal changes at once, illegal ones explained locally and blocking, click outside exits, Esc cancels, Delete only on a selected record, PC delete edge, execute + undo instead of confirm.
 - Review = Summary + History in one reading (IA §6–§9, VDS §20/§22, Amendments §2–§4): month nav with no future, neutral total, three categories without percentages, small ring without centre text, empty month without ring, history by day with two-line rows, no per-row separators, category weakest.
 - Two spaces, fixed left/right relation, no wrap, wordless dots, edge click, Alt+←/→, trackpad horizontal wheel, short non-elastic slide (IA §3, Interaction §19–§21, §24, Amendments §8).
@@ -91,12 +100,16 @@ Everything visual/interactive (M2–M6); removal of old UI/matplotlib (M7).
 - M2: `PYTHONUTF8=1 pytest --basetemp ./work/pytest-m2 -q` → 148 passed.
 - M3: `PYTHONUTF8=1 pytest --basetemp ./work/pytest-m3 -q` → 156 passed.
 - M4: `PYTHONUTF8=1 pytest --basetemp ./work/pytest-m4 -q` → 154 passed (old table/dialog tests removed, Review tests ported).
-- M5: `PYTHONUTF8=1 pytest --basetemp ./work/pytest-m5 -q` → 168 passed. Native-platform drive script `work/drive_m2.py` (not committed) produced screenshots and confirmed Enter path, toast, undo.
+- M5: `PYTHONUTF8=1 pytest --basetemp ./work/pytest-m5 -q` → 168 passed.
+- M6: `PYTHONUTF8=1 pytest --basetemp ./work/pytest-m6 -q` → 174 passed. Native-platform drive script `work/drive_m2.py` (not committed) produced screenshots and confirmed Enter path, toast, undo.
 - Launch check: `python main.py --data-dir D:\Dev\Cashing\work\m1-launch` starts with empty stderr.
 
 ## Resume here
 
-Start Milestone 6 in `ui/review_page.py` + `ui/main_window.py`:
-1. Search (Interaction §17–§18, IA §12): a low-presence search glyph at the right of the Review header; clicking it (or Ctrl+F while in Review) replaces the month row with a search field `搜索记录…` + ×, focus in the field, arrows hidden; the summary hides; results = `Ledger.search(text)` across all history, grouped by day with year headings (`describe_day(..., with_year=True)`), empty → `没有找到“…”相关记录`; results are editable in place with the same row machinery and stay in the search context after an edit; Esc / × exits and restores the month + scroll position; `MainWindow.switch_to(CAPTURE)` exits search first. Enter search only after `leave()` succeeds.
-2. Utility: a `⋮` `QToolButton#utility` overlay at the top-right of the central widget (both spaces), QMenu with `数据` (opens the data directory via QDesktopServices) and `关于 Cashing` (small about box: version, data path). Needs the data directory passed to `MainWindow` (already there).
-3. Draft is done (M2) — re-verify end to end with a real process restart in M7.
+Start Milestone 7 (cleanup + verification):
+1. Delete dead files: `ui/input_page.py`, `ui/records_page.py`, `ui/edit_dialog.py`, `ui/record_form.py`.
+2. Remove matplotlib: `requirements.txt`, `requirements-lock.txt` (matplotlib + its transitive deps), `Cashing.spec` (hiddenimports/hooksconfig), `paths.py` (`MPLCONFIGDIR` / cache dir), `tests/conftest.py`, `scripts/package_release.py` (required file + packages list).
+3. Rewrite `smoke_check.py` for the new UI (Capture Enter path → toast → Review totals/rows → edit → delete → undo → search → month nav → screenshots → reopen persistence), keeping the isolated-directory guarantees; `main.py` already passes the data directory.
+4. README: describe the new UI and data locations (draft.json, backup file), keep data/backup guidance.
+5. Run the full suite, launch the source app against an isolated data dir twice (restart persistence + draft), and against a copy of a v1 ledger (migration). Never touch `%LOCALAPPDATA%\Cashing`.
+6. Write the final report (see the task's section 三十九).

@@ -93,6 +93,15 @@ QPushButton#monthLabel {{ background: transparent; border: 1px solid transparent
 QPushButton#monthLabel:hover {{ background: {HOVER}; }}
 QPushButton#monthLabel:focus {{ border-color: {ACCENT_SOFT}; }}
 
+/* Search */
+QLineEdit#search {{ background: {SURFACE}; border: 1px solid {HAIRLINE}; border-radius: 8px;
+    padding: 5px 12px; font-size: 15px; color: {TEXT}; selection-background-color: {ACCENT_SOFT};
+    selection-color: {TEXT}; }}
+QLineEdit#search:focus {{ border-color: {ACCENT_SOFT}; }}
+QToolButton#searchGlyph {{ background: transparent; border: 1px solid transparent; border-radius: 6px; }}
+QToolButton#searchGlyph:hover {{ background: {HOVER}; }}
+QToolButton#searchGlyph:focus {{ border-color: {ACCENT_SOFT}; }}
+
 /* In-place row editors */
 QLineEdit#rowEdit, QDateTimeEdit#rowEdit {{
     background: transparent; border: none; border-bottom: 1px solid {ACCENT_SOFT}; padding: 0px 2px;

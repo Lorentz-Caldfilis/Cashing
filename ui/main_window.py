@@ -1,7 +1,8 @@
 """Cashing main window: two full-window spaces, Capture ⇄ Review, and window-level overlays."""
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QShortcut, QKeySequence
-from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout
+from pathlib import Path
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QShortcut, QKeySequence, QDesktopServices
+from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QToolButton, QMenu, QMessageBox
 from draft import DraftStore
 from ledger import Ledger
 from ui import theme
@@ -46,6 +47,23 @@ class MainWindow(QMainWindow):
         self.right_edge = EdgeZone(+1, central)
         self.right_edge.activated.connect(lambda: self.switch_to(REVIEW))
         self.toast = Toast(central)
+        self.utility = QToolButton(central)
+        self.utility.setObjectName("utility")
+        self.utility.setText("⋮")
+        self.utility.setAccessibleName("更多")
+        self.utility.setToolTip("更多")
+        self.utility.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.utility.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.utility.setFixedSize(32, 32)
+        self.utility_menu = QMenu(self.utility)
+        self.open_data_action = self.utility_menu.addAction("打开数据目录")
+        self.open_data_action.triggered.connect(self.open_data_directory)
+        self.utility_menu.addSeparator()
+        self.about_action = self.utility_menu.addAction("关于 Cashing")
+        self.about_action.triggered.connect(self.show_about)
+        self.utility.setMenu(self.utility_menu)
+        self.data_directory = Path(data_directory) if data_directory else None
+        self.database_path = database.path
 
         self.capture.changed.connect(self.review.refresh)
         QShortcut(QKeySequence("Alt+Right"), self, activated=lambda: self.switch_to(REVIEW))
@@ -66,7 +84,7 @@ class MainWindow(QMainWindow):
         index = max(CAPTURE, min(REVIEW, index))  # no wrap-around
         if index == self.spaces.current_index():
             return False
-        if index == CAPTURE and not self.review.leave():
+        if index == CAPTURE and not self.review.prepare_leave():
             return False  # an invalid edit must be fixed or cancelled first
         self.spaces.set_index(index, animate)
         self.dots.set_index(index)
@@ -80,6 +98,19 @@ class MainWindow(QMainWindow):
 
     def notify(self, text, undo=None, *, danger=False):
         self.toast.show_message(text, undo, danger=danger)
+
+    # ---- utility (low-frequency, never a third space) ---------------------
+    def open_data_directory(self):
+        target = self.data_directory or self.database_path.parent
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(target)))
+
+    def about_text(self):
+        version = QApplication.applicationVersion() or ""
+        return (f"Cashing {version}".strip() + "\n本地个人消费记录，数据只保存在本机。\n\n"
+                f"账单文件：{self.database_path}")
+
+    def show_about(self):
+        QMessageBox.about(self, "关于 Cashing", self.about_text())
 
     # ---- draft -------------------------------------------------------------
     def _restore_draft(self):
@@ -105,7 +136,8 @@ class MainWindow(QMainWindow):
         index = self.spaces.current_index()
         self.left_edge.setVisible(index > CAPTURE)
         self.right_edge.setVisible(index < REVIEW)
-        for overlay in (self.left_edge, self.right_edge, self.dots, self.toast):
+        self.utility.move(width - self.utility.width() - 16, 14)
+        for overlay in (self.left_edge, self.right_edge, self.dots, self.utility, self.toast):
             overlay.raise_()
         self.toast.reposition()
 

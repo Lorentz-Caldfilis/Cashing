@@ -4,16 +4,16 @@ Summary and history are one thought, not two tabs. Structure comes from
 spacing, alignment and day headings; there are no cards, no per-row lines.
 """
 from datetime import datetime
-from PySide6.QtCore import Qt, QObject, Signal, QRectF, QEvent
-from PySide6.QtGui import QPainter, QColor, QPen
+from PySide6.QtCore import Qt, QObject, Signal, QRectF, QEvent, QTimer, QPointF
+from PySide6.QtGui import QPainter, QColor, QPen, QShortcut, QKeySequence
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QToolButton, QScrollArea, QFrame, QApplication,
-    QSizePolicy,
+    QSizePolicy, QLineEdit, QStackedWidget,
 )
 from database import DatabaseError
 from domain import (
     CATEGORIES, UNKNOWN_LABEL, format_cents, format_amount, describe_day, describe_month, shift_month,
-    MIN_YEAR,
+    MIN_YEAR, group_by_day,
 )
 from ui import theme
 from ui.record_row import RecordRow, DayHeading  # noqa: F401  (DayHeading re-exported for tests)
@@ -201,6 +201,31 @@ class HistoryList(QWidget):
         return next((row for row in self.rows if row.record["id"] == record_id), None)
 
 
+class SearchGlyph(QToolButton):
+    """A small painted magnifier — one of the few icons the system allows."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("searchGlyph")
+        self.setFixedSize(32, 32)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setAccessibleName("搜索记录")
+        self.setToolTip("搜索记录")
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(QColor(theme.TEXT_2 if self.underMouse() or self.hasFocus() else theme.TEXT_3))
+        pen.setWidthF(1.6)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        cx, cy = self.width() / 2 - 1.5, self.height() / 2 - 1.5
+        painter.drawEllipse(QPointF(cx, cy), 5.5, 5.5)
+        painter.drawLine(QPointF(cx + 4.2, cy + 4.2), QPointF(cx + 8.5, cy + 8.5))
+
+
 class ReviewPage(QWidget):
     def __init__(self, ledger, notify, parent=None):
         super().__init__(parent)
@@ -219,12 +244,21 @@ class ReviewPage(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        # Header: the month is the context of everything below it.
+        # Header: the month is the context of everything below it; Search temporarily takes its place.
+        self.searching = False
+        self._saved_scroll = 0
         self.header = QWidget()
         self.header.setObjectName("space")
         self.header.setFixedHeight(64)
-        header = QHBoxLayout(self.header)
-        header.setContentsMargins(56, 12, 56, 4)
+        header_layout = QHBoxLayout(self.header)
+        header_layout.setContentsMargins(56, 12, 56, 4)
+        header_layout.setSpacing(0)
+        self.header_stack = QStackedWidget()
+        self.header_stack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        month_row = QWidget()
+        month_row.setObjectName("space")
+        header = QHBoxLayout(month_row)
+        header.setContentsMargins(0, 0, 0, 0)
         header.setSpacing(4)
         header.addStretch()
         self.previous = QToolButton()
@@ -252,7 +286,42 @@ class ReviewPage(QWidget):
         self.next.clicked.connect(lambda: self.change_month(1))
         header.addWidget(self.next)
         header.addStretch()
+        self.header_stack.addWidget(month_row)
+        search_row = QWidget()
+        search_row.setObjectName("space")
+        search_layout = QHBoxLayout(search_row)
+        search_layout.setContentsMargins(0, 0, 0, 0)
+        search_layout.setSpacing(4)
+        search_layout.addStretch()
+        self.search_field = QLineEdit()
+        self.search_field.setObjectName("search")
+        self.search_field.setPlaceholderText("搜索记录…")
+        self.search_field.setClearButtonEnabled(False)
+        self.search_field.setFixedWidth(320)
+        self.search_field.setAccessibleName("搜索记录")
+        self.search_field.textChanged.connect(lambda _: self._search_timer.start())
+        search_layout.addWidget(self.search_field)
+        self.search_close = QToolButton()
+        self.search_close.setObjectName("monthArrow")
+        self.search_close.setText("×")
+        self.search_close.setAccessibleName("退出搜索")
+        self.search_close.setToolTip("退出搜索")
+        self.search_close.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.search_close.clicked.connect(self.exit_search)
+        search_layout.addWidget(self.search_close)
+        search_layout.addStretch()
+        self.header_stack.addWidget(search_row)
+        header_layout.addWidget(self.header_stack, 1)
+        self.search_button = SearchGlyph()
+        self.search_button.clicked.connect(self.enter_search)
+        header_layout.addWidget(self.search_button, 0, Qt.AlignmentFlag.AlignVCenter)
         outer.addWidget(self.header)
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(150)
+        self._search_timer.timeout.connect(self._run_search)
+        QShortcut(QKeySequence(QKeySequence.StandardKey.Find), self,
+                  context=Qt.ShortcutContext.WidgetWithChildrenShortcut, activated=self.enter_search)
 
         # Body: summary then history, one scroll.
         self.scroll = QScrollArea()
@@ -282,6 +351,13 @@ class ReviewPage(QWidget):
         self.failure.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.failure.hide()
         column.addWidget(self.failure)
+        self.no_results = QLabel()
+        self.no_results.setFont(theme.font(14))
+        self.no_results.setStyleSheet(f"color: {theme.TEXT_3};")
+        self.no_results.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.no_results.setTextFormat(Qt.TextFormat.PlainText)
+        self.no_results.hide()
+        column.addWidget(self.no_results)
         column.addSpacing(40)
         self.history = HistoryList(ledger)
         self.history.row_clicked.connect(self._row_clicked)
@@ -330,6 +406,9 @@ class ReviewPage(QWidget):
 
     # ---- data -------------------------------------------------------------------
     def refresh(self, *, keep_scroll=False):
+        if self.searching:
+            self._run_search(keep_scroll=keep_scroll)
+            return
         position = self.scroll.verticalScrollBar().value() if keep_scroll else 0
         self._drop_edit_state()
         self.month_label.setText(describe_month(self.year, self.month))
@@ -353,6 +432,67 @@ class ReviewPage(QWidget):
 
     def rows(self):
         return self.history.rows
+
+    # ---- search (a temporary Review state, never a third space) -------------
+    def enter_search(self):
+        if self.searching:
+            self.search_field.setFocus()
+            self.search_field.selectAll()
+            return
+        if not self.leave():
+            return
+        self.searching = True
+        self._saved_scroll = self.scroll.verticalScrollBar().value()
+        self.header_stack.setCurrentIndex(1)
+        self.search_button.hide()
+        self.summary.hide()
+        self.failure.hide()
+        self.history.clear()
+        self.no_results.hide()
+        self.search_field.clear()
+        self.search_field.setFocus()
+
+    def exit_search(self):
+        if not self.searching:
+            return
+        self.cancel_edit()
+        self.searching = False
+        self._search_timer.stop()
+        self.header_stack.setCurrentIndex(0)
+        self.search_button.show()
+        self.no_results.hide()
+        self.summary.show()
+        self.search_field.clear()
+        self.refresh()
+        self.scroll.verticalScrollBar().setValue(self._saved_scroll)
+        self.setFocus()
+
+    def _run_search(self, *, keep_scroll=False):
+        if not self.searching:
+            return
+        position = self.scroll.verticalScrollBar().value() if keep_scroll else 0
+        self._drop_edit_state()
+        query = self.search_field.text().strip()
+        try:
+            records = self.ledger.search(query) if query else []
+        except DatabaseError as exc:
+            self.history.clear()
+            self.failure.setText(f"无法读取账单，当前显示可能不完整。{exc}")
+            self.failure.show()
+            return
+        self.failure.hide()
+        self.history.show_groups(group_by_day(records), headings_with_year=True)
+        self.no_results.setText(f"没有找到“{query}”相关记录" if query and not records else "")
+        self.no_results.setVisible(bool(query) and not records)
+        if keep_scroll:
+            self.scroll.verticalScrollBar().setValue(position)
+
+    def prepare_leave(self):
+        """Before the space is left: a valid edit ends, search closes; an invalid edit refuses."""
+        if not self.leave():
+            return False
+        self.exit_search()
+        return True
 
     # ---- edit state (Browse → Edit → Browse) --------------------------------
     def leave(self):
@@ -393,11 +533,12 @@ class ReviewPage(QWidget):
 
     def _row_changed(self, row, old, new):
         """A legal change already reached the ledger: keep the summary honest right away."""
-        try:
-            totals = self.ledger.month(self.year, self.month).totals
-        except DatabaseError:
-            return
-        self.summary.set_totals(totals)
+        if not self.searching:
+            try:
+                totals = self.ledger.month(self.year, self.month).totals
+            except DatabaseError:
+                return
+            self.summary.set_totals(totals)
         if old["datetime"] != new["datetime"]:
             self._rebuild_after_edit = True  # order or month membership changed; re-sort once the edit ends
 
@@ -424,9 +565,13 @@ class ReviewPage(QWidget):
         self.refresh(keep_scroll=True)
 
     def keyPressEvent(self, event):
-        if event.key() == Qt.Key.Key_Escape and self.editing_row is not None:
-            self.cancel_edit()
-            return
+        if event.key() == Qt.Key.Key_Escape:
+            if self.editing_row is not None:
+                self.cancel_edit()
+                return
+            if self.searching:
+                self.exit_search()
+                return
         super().keyPressEvent(event)
 
 
