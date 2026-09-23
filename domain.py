@@ -102,8 +102,13 @@ def group_by_day(records):
     return groups
 
 
+# Dates are set the way Chinese is written: digits run straight into 年/月/日 with no
+# Western space (2026年9月, 9月22日). A space only separates two different things —
+# the date from the weekday or from the clock.
+
+
 def describe_time(when: datetime, now: datetime | None = None) -> str:
-    """Weak, natural time for Capture: 今天 20:10 / 昨天 19:30 / 9 月 18 日 12:00."""
+    """Weak, natural time for Capture: 今天 20:10 / 昨天 19:30 / 9月18日 12:00."""
     now = now or datetime.now()
     clock = f"{when.hour:02d}:{when.minute:02d}"
     delta = (now.date() - when.date()).days
@@ -112,19 +117,19 @@ def describe_time(when: datetime, now: datetime | None = None) -> str:
     if delta == 1:
         return f"昨天 {clock}"
     if when.year == now.year:
-        return f"{when.month} 月 {when.day} 日 {clock}"
-    return f"{when.year} 年 {when.month} 月 {when.day} 日 {clock}"
+        return f"{when.month}月{when.day}日 {clock}"
+    return f"{when.year}年{when.month}月{when.day}日 {clock}"
 
 
 def describe_day(day: str, now: datetime | None = None, *, with_year=False) -> str:
-    """History group heading: 9 月 20 日 星期六, with the year when asked or when it differs."""
+    """History group heading: 9月20日 星期六, with the year when asked or when it differs."""
     now = now or datetime.now()
     value = date.fromisoformat(day)
     weekday = WEEKDAYS[value.weekday()]
     if with_year or value.year != now.year:
-        return f"{value.year} 年 {value.month} 月 {value.day} 日 {weekday}"
-    return f"{value.month} 月 {value.day} 日 {weekday}"
+        return f"{value.year}年{value.month}月{value.day}日 {weekday}"
+    return f"{value.month}月{value.day}日 {weekday}"
 
 
 def describe_month(year: int, month: int) -> str:
-    return f"{year} 年 {month} 月"
+    return f"{year}年{month}月"

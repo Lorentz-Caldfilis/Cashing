@@ -3,11 +3,12 @@ import gc
 import weakref
 from datetime import datetime
 import pytest
-from PySide6.QtCore import Qt, QCoreApplication, QEvent
+from PySide6.QtCore import Qt, QCoreApplication, QEvent, QPoint
 from database import DatabaseError
 from domain import CATEGORIES
 from ui.main_window import MainWindow, REVIEW
-from ui.review_page import RecordRow, DonutChart, DayHeading
+from ui.review_page import RecordRow, DonutChart, DayHeading, MEASURE
+from ui.record_row import VALUE_TAIL, CARET_ROOM
 
 
 @pytest.fixture
@@ -35,16 +36,16 @@ def test_summary_ring_history_and_month_bounds(window, qtbot, database):
     window.switch_to(REVIEW, animate=False)
     page = window.review
     september(page)
-    assert page.month_label.text() == "2026 年 9 月"
+    assert page.month_label.text() == "2026年9月"
     assert page.summary.total.text() == "85.50" and page.summary.currency.text() == "¥"
     assert [page.summary.lines[c].amount.text() for c in CATEGORIES] == ["¥28.50", "¥28.50", "¥28.50"]
-    assert not page.summary.unknown_line.isVisible()
+    assert page.summary.unknown_note.text() == ""  # its line is reserved, but says nothing
     assert [cents for _, cents in page.summary.donut.segments] == [2850, 2850, 2850]
     assert not page.summary.empty.isVisible() and page.summary.structure.isVisible()
     assert len(page.rows()) == 3
     assert page.summary.donut.isVisible()
     page.change_month(-1)
-    assert page.month_label.text() == "2026 年 8 月"
+    assert page.month_label.text() == "2026年8月"
     assert page.rows() == [] and page.summary.total.text() == "0.00"
     assert page.summary.empty.isVisible() and not page.summary.structure.isVisible()
     assert page.summary.donut.segments == []
@@ -95,14 +96,78 @@ def test_unknown_amounts_count_in_the_total_but_never_as_a_fourth_category(windo
     september(page)
     assert page.summary.total.text() == "20.00"
     assert page.summary.lines["生活"].amount.text() == "¥8.00"
-    assert page.summary.unknown_line.isVisible() and page.summary.unknown_line.amount.text() == "¥12.00"
-    assert page.summary.unknown_line.name.text() == "暂未判断"
+    assert page.summary.unknown_note.text() == "另有 ¥12.00 尚未分类"
     assert len(page.summary.lines) == 3  # the three core categories only
     # The ring shows the unjudged share only as a neutral sliver, in last place.
     assert [cents for _, cents in page.summary.donut.segments] == [800, 1200]
     rows = page.rows()
     assert rows[0].category_name.text() == "生活" and not rows[0].category_dot.isHidden()
     assert rows[1].category_name.text() == "" and rows[1].category_dot.isHidden()
+
+
+def test_no_ring_without_a_classified_proportion(window, database):
+    """Nothing judged yet is not a proportion: the ring disappears instead of
+    drawing a grey circle, while the total and the history stay complete."""
+    database.add_record(1200, datetime(2026, 9, 20, 12, 0), None, "未知 A")
+    database.add_record(800, datetime(2026, 9, 20, 13, 0), None, "未知 B")
+    page = window.review
+    september(page)
+    assert page.summary.total.text() == "20.00"
+    assert page.summary.donut.segments == [] and page.summary.donut.isHidden()
+    assert page.summary.unknown_note.text() == "另有 ¥20.00 尚未分类"
+    assert len(page.rows()) == 2
+    page.rows()[0].begin_edit("category")
+    page.rows()[0].category_box.setCurrentText("生活")
+    assert not page.summary.donut.isHidden()
+    assert [cents for _, cents in page.summary.donut.segments] == [800, 1200]
+
+
+def x_in(page, widget, x=0):
+    """Where x (in the widget) lands in the page's coordinates."""
+    return widget.mapTo(page, QPoint(x, 0)).x()
+
+
+def settle(qtbot, page):
+    for _ in range(2):
+        page.body_layout.activate()
+        qtbot.wait(10)
+
+
+def test_summary_and_history_hang_off_one_grid(window, qtbot, database):
+    """Category names start on the records' text edge, the ring ends on their value edge,
+    and the two edges sit evenly about the page's centre line."""
+    database.add_record(2850, datetime(2026, 9, 20, 18, 42), "生活", "晚饭")
+    database.add_record(5900, datetime(2026, 9, 20, 15, 17), "工具", "ChatGPT")
+    page = window.review
+    september(page)
+    settle(qtbot, page)
+    row = page.rows()[0]
+    text_edge = x_in(page, row.description)
+    value_edge = x_in(page, row, row.width() - VALUE_TAIL)
+    assert value_edge - text_edge == MEASURE  # one record is read across a short measure
+    assert x_in(page, row.amount, row.amount.width() - CARET_ROOM) == value_edge
+    assert [x_in(page, line.name) for line in page.summary.lines.values()] == [text_edge] * 3
+    assert x_in(page, page.summary.donut, page.summary.donut.width()) == value_edge
+    centre = x_in(page, page.column, page.column.width() // 2)
+    assert abs((text_edge + value_edge) / 2 - centre) <= 1
+
+
+def test_a_month_without_a_ring_keeps_no_room_for_one(window, qtbot, database):
+    """Nothing classified: the ring's slot goes too, and the three lines sit on the centre
+    line instead of beside an empty space."""
+    database.add_record(1200, datetime(2026, 9, 20, 12, 0), None, "未知")
+    page = window.review
+    september(page)
+    settle(qtbot, page)
+    assert page.summary.chart_slot.isHidden()
+    line = page.summary.lines["生活"]
+    words = (x_in(page, line.name) + x_in(page, line.amount, line.amount.width())) / 2
+    assert abs(words - x_in(page, page.column, page.column.width() // 2)) <= 1
+    page.rows()[0].begin_edit("category")
+    page.rows()[0].category_box.setCurrentText("生活")  # a proportion exists: the ring and its room return
+    settle(qtbot, page)
+    assert not page.summary.chart_slot.isHidden()
+    assert x_in(page, line.name) == x_in(page, page.rows()[0].description)
 
 
 def test_history_is_grouped_by_day_newest_first(window, database):
@@ -112,12 +177,12 @@ def test_history_is_grouped_by_day_newest_first(window, database):
     page = window.review
     september(page)
     headings = [h.text() for h in page.history.findChildren(DayHeading)]
-    assert headings == ["9 月 20 日 星期日", "9 月 19 日 星期六"]
+    assert headings == ["9月20日 星期日", "9月19日 星期六"]
     assert labels(page) == [("18:42", "¥28.50", "晚饭", "生活"), ("15:17", "¥59.00", "ChatGPT", "工具"),
                             ("21:03", "¥36.00", "电影", "娱乐")]
     QCoreApplication.processEvents()
     ordered = page.history.findChildren(DayHeading) + page.history.findChildren(RecordRow)
-    ordered.sort(key=lambda w: w.y())
+    ordered.sort(key=lambda w: w.mapTo(page.history, QPoint(0, 0)).y())
     assert [type(w).__name__ for w in ordered] == ["DayHeading", "RecordRow", "RecordRow", "DayHeading", "RecordRow"]
 
 

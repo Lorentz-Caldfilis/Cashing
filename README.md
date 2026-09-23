@@ -2,7 +2,7 @@
 
 Windows 本地个人消费记录：只有两个空间——**Capture**（记一笔）和 **Review**（看这个月）。
 仅使用 Python、PySide6 与标准库 sqlite3，无网络服务、登录或云同步。
-界面遵循 `docs/design/` 中冻结的设计规范（PC Light Mode v2）；实现进度见 `IMPLEMENTATION_STATUS.md`。
+界面遵循 `docs/design/` 中冻结的设计规范（PC Light Mode v2）；实现进度见 `docs/development/IMPLEMENTATION_STATUS.md`。
 
 ## 下载与直接运行
 
@@ -29,9 +29,9 @@ Windows 本地个人消费记录：只有两个空间——**Capture**（记一�
   说明可以为空（`28.5` Enter Enter）。时间默认为现在，点击“今天 20:10”可改。
   写入数据库成功后才清空输入；底部短暂出现“已记录 ¥28.50 · 晚饭  撤销”，点“撤销”删除该记录并恢复原输入。
   金额非法只在金额下方提示；保存失败时输入原样保留。Capture 不要求选择类别，类别由软件在 Review 中派生显示。
-- **Review（看这个月）**：`‹ 2026 年 9 月 ›` 切换月份（不能进入未来月份，点月份文字回到本月）；
+- **Review（看这个月）**：`‹ 2026年9月 ›` 切换月份（不能进入未来月份，点月份文字回到本月）；
   下方依次是月总额、生活/工具/娱乐三项金额、一个小环形图、按天分组的记录。软件尚未判断类别的金额
-  只以极弱的“暂未判断 ¥X”出现，总额始终包含它，不需要处理。
+  只以极弱的一句“另有 ¥X 尚未分类”出现，总额始终包含它，不需要处理。三类都为 0 时不画环形图，三项金额移到中线上。
 - **切换空间**：点击窗口左右边缘、Alt+← / Alt+→、点击底部圆点，或触控板横向滑动。
   普通 ←/→ 只在文本框内移动光标。
 - **原地编辑**：单击某条记录即可修改金额、说明、时间、分类；离开字段即生效，Enter 完成，Esc 放弃，
@@ -149,16 +149,16 @@ Get-FileHash .\release\Cashing-v1.0.0-windows.zip -Algorithm SHA256
 - paths.py：数据目录与验收目录隔离。
 - ui/：theme（视觉 token）、main_window（双空间、圆点、边缘、Toast、⋮）、spaces（页面切换）、
   capture_page、review_page、record_row（原地编辑与删除边）、toast。
-- docs/design/：冻结的设计规范。IMPLEMENTATION_STATUS.md：本轮实现记录。
+- docs/design/：冻结的设计规范。docs/development/IMPLEMENTATION_STATUS.md：本轮实现记录。
 - tests/：业务、SQLite、迁移、路径、Ledger、草稿、GUI（Capture / 切换 / Review / 编辑 / 搜索）。
 - scripts/：发行包生成及原生进程验收。
 - Cashing.spec、version_info.txt、build.ps1：Windows 构建配置。
-- RELEASE_AUDIT.md：本轮发现、修复、验证证据和限制。
+- docs/releases/v1.0.0/RELEASE_AUDIT.md：本轮发现、修复、验证证据和限制。
 - 开发缓存、测试账本、日志、发行二进制均被 Git 忽略。
 
 ## 验收范围和已知限制
 
-- v1.0.0 发布审计见 RELEASE_AUDIT.md；UI v2 的测试与验证记录见 IMPLEMENTATION_STATUS.md。
+- v1.0.0 发布审计见 docs/releases/v1.0.0/RELEASE_AUDIT.md；UI v2 的测试与验证记录见 docs/development/IMPLEMENTATION_STATUS.md。
 - 已自动验证窗口交互、源码/EXE 重启、特殊路径和多个缩放比例；这不等同于所有 Windows 机器均已验收。
 - Windows 10、无 Python 干净机器、真实中文 IME 输入、跨显示器拖动及物理断网仍需人工验收。
 - 仅消费和固定三类（生活、工具、娱乐，可暂未判断），无收入、预算、账户、云同步、导出、复杂报表。

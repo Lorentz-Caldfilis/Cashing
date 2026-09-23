@@ -6,12 +6,12 @@ the spaces; a horizontal trackpad scroll does too. Plain ←/→ are never used 
 they belong to text editing.
 """
 import time
-from PySide6.QtCore import Qt, QObject, QEvent, QPropertyAnimation, QEasingCurve, Property, Signal, QRectF
+from PySide6.QtCore import Qt, QObject, QEvent, QPropertyAnimation, Property, Signal, QRectF
 from PySide6.QtGui import QPainter, QColor, QPen, QPainterPath
 from PySide6.QtWidgets import QWidget, QApplication
-from ui import theme
+from ui import motion, theme
 
-SLIDE_MS = 180
+SLIDE_MS = motion.SPACE
 EDGE_WIDTH = 28
 WHEEL_THRESHOLD = 150   # accumulated angleDelta().x() units (one notch = 120)
 WHEEL_COOLDOWN_S = 0.5
@@ -31,7 +31,7 @@ class SpaceSwitcher(QWidget):
         self._offset = 0
         self._animation = QPropertyAnimation(self, b"offset", self)
         self._animation.setDuration(SLIDE_MS)
-        self._animation.setEasingCurve(QEasingCurve.Type.OutCubic)  # eases out, never overshoots
+        self._animation.setEasingCurve(motion.curve())  # leaves at once, settles without overshoot
 
     # ---- pages -----------------------------------------------------------
     def add_page(self, page):
@@ -59,7 +59,7 @@ class SpaceSwitcher(QWidget):
         self._index = index
         target = index * self.width()
         self._animation.stop()
-        if animate and self.isVisible() and self.width() > 0:
+        if animate and motion.ENABLED and self.isVisible() and self.width() > 0:
             self._animation.setStartValue(self._offset)
             self._animation.setEndValue(target)
             self._animation.start()
@@ -75,6 +75,8 @@ class SpaceSwitcher(QWidget):
         return self._offset
 
     def _set_offset(self, value):
+        """Only the strip's position changes. Both pages keep the geometry they already
+        had, so no content is re-laid out while the spaces move."""
         self._offset = int(value)
         self._strip.move(-self._offset, 0)
 

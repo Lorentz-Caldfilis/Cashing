@@ -126,8 +126,8 @@ def test_time_descriptions():
     now = datetime(2026, 9, 20, 20, 10)
     assert describe_time(datetime(2026, 9, 20, 20, 10), now) == "今天 20:10"
     assert describe_time(datetime(2026, 9, 19, 23, 59), now) == "昨天 23:59"
-    assert describe_time(datetime(2026, 9, 1, 8, 5), now) == "9 月 1 日 08:05"
-    assert describe_time(datetime(2025, 12, 31, 8, 5), now) == "2025 年 12 月 31 日 08:05"
-    assert describe_day("2026-09-20", now) == "9 月 20 日 星期日"
-    assert describe_day("2026-09-20", now, with_year=True) == "2026 年 9 月 20 日 星期日"
-    assert describe_day("2025-01-01", now) == "2025 年 1 月 1 日 星期三"
+    assert describe_time(datetime(2026, 9, 1, 8, 5), now) == "9月1日 08:05"
+    assert describe_time(datetime(2025, 12, 31, 8, 5), now) == "2025年12月31日 08:05"
+    assert describe_day("2026-09-20", now) == "9月20日 星期日"
+    assert describe_day("2026-09-20", now, with_year=True) == "2026年9月20日 星期日"
+    assert describe_day("2025-01-01", now) == "2025年1月1日 星期三"

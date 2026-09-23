@@ -1,10 +1,11 @@
 """Search is a temporary Review state across all history; Utility is a quiet ⋮, never a third space."""
 from datetime import datetime
 import pytest
-from PySide6.QtCore import Qt, QCoreApplication
+from PySide6.QtCore import Qt, QCoreApplication, QPoint
 from PySide6.QtWidgets import QMenu
 from ui.main_window import MainWindow, CAPTURE, REVIEW
 from ui.record_row import DayHeading
+from ui.review_page import SEARCH_TEXT_INSET
 
 
 @pytest.fixture
@@ -51,7 +52,7 @@ def test_search_replaces_the_month_row_and_spans_all_history(page, qtbot):
     assert [(r.record["datetime"][:10], r.record["description"]) for r in page.rows()] == [
         ("2026-09-12", "ChatGPT Plus"), ("2026-08-12", "ChatGPT Plus"), ("2025-03-01", "chatgpt 礼品卡")]
     headings = [h.text() for h in page.history.findChildren(DayHeading)]
-    assert headings == ["2026 年 9 月 12 日 星期六", "2026 年 8 月 12 日 星期三", "2025 年 3 月 1 日 星期六"]
+    assert headings == ["2026年9月12日 星期六", "2026年8月12日 星期三", "2025年3月1日 星期六"]
     assert not page.no_results.isVisibleTo(page)
     search(qtbot, page, "键盘")
     assert page.rows() == [] and page.no_results.isVisibleTo(page)
@@ -60,7 +61,7 @@ def test_search_replaces_the_month_row_and_spans_all_history(page, qtbot):
     assert page.rows() == []
     qtbot.mouseClick(page.search_close, Qt.MouseButton.LeftButton)
     assert not page.searching and page.header_stack.currentIndex() == 0
-    assert (page.year, page.month) == (2026, 9) and page.month_label.text() == "2026 年 9 月"
+    assert (page.year, page.month) == (2026, 9) and page.month_label.text() == "2026年9月"
     assert page.summary.isVisibleTo(page) and not page.search_button.isHidden()
     assert [r.record["description"] for r in page.rows()] == ["晚饭", "ChatGPT Plus"]
     assert page.search_field.text() == ""
@@ -130,11 +131,25 @@ def test_search_read_failure_is_reported(page, qtbot, monkeypatch, database):
     assert not page.failure.isVisibleTo(page) and len(page.rows()) == 1
 
 
+def test_the_query_is_typed_on_the_records_text_edge(page, qtbot):
+    page.enter_search()
+    search(qtbot, page, "晚")
+    page.body_layout.activate()
+    qtbot.wait(10)
+    typed = page.search_field.mapTo(page, QPoint(SEARCH_TEXT_INSET, 0)).x()
+    found = page.rows()[0].description.mapTo(page, QPoint(0, 0)).x()
+    assert abs(typed - found) <= 1
+
+
 def test_utility_is_a_quiet_overlay_on_both_spaces(window, qtbot, tmp_path, database):
     utility = window.utility
     assert utility.text() == "⋮" and utility.isVisible()
     assert utility.x() + utility.width() <= window.centralWidget().width()
     assert utility.y() < 40
+    # On the header's line, not a near miss above it.
+    glyph = window.review.search_button
+    central = window.centralWidget()
+    assert glyph.mapTo(central, glyph.rect().center()).y() == utility.geometry().center().y()
     window.switch_to(CAPTURE, animate=False)
     assert utility.isVisible()
     actions = [a.text() for a in window.utility_menu.actions() if not a.isSeparator()]

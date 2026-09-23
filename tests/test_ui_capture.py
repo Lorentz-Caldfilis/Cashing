@@ -33,6 +33,16 @@ def test_startup_focus_is_the_amount(window):
     assert not window.capture.record_button.isEnabled()
 
 
+def test_empty_amount_shows_a_placeholder_that_is_never_a_value(window, qtbot, database):
+    capture = window.capture
+    assert capture.amount.text() == "" and capture.amount.placeholderText() == "0.00"
+    assert not capture.record_button.isEnabled()
+    capture.record()
+    assert stored(database) == [] and not window.toast.isVisible()
+    qtbot.keyClicks(capture.amount, "28.5")
+    assert capture.amount.text() == "28.5"
+
+
 def test_enter_path_amount_then_description_then_record(window, qtbot, database):
     capture = window.capture
     qtbot.keyClicks(capture.amount, "28.5")
@@ -169,8 +179,8 @@ def test_time_editor_changes_only_the_pending_record(window, qtbot):
     assert capture.time_button.text().startswith("今天 ")
     capture.popover.changed.emit(datetime(2026, 9, 19, 22, 15))
     assert not capture.time_is_auto()
-    assert capture.time_button.text().startswith("9 月 19 日 22:15") or capture.time_button.text().startswith("昨天 22:15") \
-        or capture.time_button.text().startswith("2026 年 9 月 19 日 22:15")
+    assert capture.time_button.text().startswith("9月19日 22:15") or capture.time_button.text().startswith("昨天 22:15") \
+        or capture.time_button.text().startswith("2026年9月19日 22:15")
     capture.popover.reset.emit()
     assert capture.time_is_auto() and capture.time_button.text().startswith("今天 ")
 

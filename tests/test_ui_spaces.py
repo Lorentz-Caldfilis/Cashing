@@ -3,7 +3,8 @@ import pytest
 from PySide6.QtCore import Qt, QPoint, QPointF
 from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import QApplication
-from ui.main_window import MainWindow, CAPTURE, REVIEW
+from ui import motion
+from ui.main_window import MainWindow, DOTS_BOTTOM, CAPTURE, REVIEW
 from ui import spaces
 
 
@@ -119,8 +120,9 @@ def test_wheel_gesture_gap_resets_accumulation(window, qtbot, monkeypatch):
 
 def test_slide_is_short_and_lands_exactly(window, qtbot):
     window.switch_to(REVIEW)
-    assert window.spaces.is_animating()
-    assert spaces.SLIDE_MS <= 220
+    # With motion switched off the space still changes — it just arrives at once.
+    assert window.spaces.is_animating() == motion.ENABLED
+    assert 180 <= spaces.SLIDE_MS <= 220
     settled(qtbot, window)
     assert window.spaces.offset == window.spaces.width()
     window.resize(window.width() + 40, window.height())
@@ -134,5 +136,5 @@ def test_overlays_follow_the_window(window, qtbot):
     qtbot.wait(20)
     central = window.centralWidget()
     assert abs(window.dots.x() + window.dots.width() // 2 - central.width() // 2) <= 1
-    assert window.dots.y() + window.dots.height() == central.height() - 20
+    assert window.dots.y() + window.dots.height() == central.height() - DOTS_BOTTOM
     assert window.right_edge.x() + window.right_edge.width() == central.width()

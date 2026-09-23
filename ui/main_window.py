@@ -7,12 +7,13 @@ from draft import DraftStore
 from ledger import Ledger
 from ui import theme
 from ui.capture_page import CapturePage
-from ui.review_page import ReviewPage
+from ui.review_page import ReviewPage, HEADER_LINE
 from ui.spaces import SpaceSwitcher, PageDots, EdgeZone, WheelNavigator, EDGE_WIDTH
 from ui.toast import Toast
 
 CAPTURE, REVIEW = 0, 1
-DOTS_BOTTOM = 20
+DOTS_BOTTOM = 22          # the dots themselves then sit ~30 px above the window edge
+WINDOW_WIDTH, WINDOW_HEIGHT = 1000, 760
 
 
 class MainWindow(QMainWindow):
@@ -23,7 +24,7 @@ class MainWindow(QMainWindow):
         self.drafts = DraftStore(data_directory) if data_directory else None
         screen = QApplication.primaryScreen().availableGeometry()
         self.setMinimumSize(min(640, max(320, screen.width() - 40)), min(480, max(240, screen.height() - 80)))
-        self.resize(min(900, screen.width() - 40), min(720, screen.height() - 60))
+        self.resize(min(WINDOW_WIDTH, screen.width() - 40), min(WINDOW_HEIGHT, screen.height() - 60))
         QApplication.instance().setFont(theme.font(theme.BASE_PX))
         self.setStyleSheet(theme.STYLE)
 
@@ -86,13 +87,16 @@ class MainWindow(QMainWindow):
             return False
         if index == CAPTURE and not self.review.prepare_leave():
             return False  # an invalid edit must be fixed or cancelled first
+        if index == REVIEW:
+            # Bring the destination up to date before it starts moving: the two spaces
+            # slide as they are, and nothing re-lays out during the transition.
+            self.review.refresh()
         self.spaces.set_index(index, animate)
         self.dots.set_index(index)
         self._update_overlays()
         if index == CAPTURE:
             self.capture.focus_default()
         else:
-            self.review.refresh()
             self.review.setFocus()
         return True
 
@@ -136,7 +140,8 @@ class MainWindow(QMainWindow):
         index = self.spaces.current_index()
         self.left_edge.setVisible(index > CAPTURE)
         self.right_edge.setVisible(index < REVIEW)
-        self.utility.move(width - self.utility.width() - 16, 14)
+        # On the header's line (month, search) rather than just above it; the same place in both spaces.
+        self.utility.move(width - self.utility.width() - 16, HEADER_LINE - self.utility.height() // 2)
         for overlay in (self.left_edge, self.right_edge, self.dots, self.utility, self.toast):
             overlay.raise_()
         self.toast.reposition()

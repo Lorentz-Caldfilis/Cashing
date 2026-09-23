@@ -5,22 +5,60 @@ spacing, alignment and day headings; there are no cards, no per-row lines.
 """
 from datetime import datetime
 from PySide6.QtCore import Qt, QObject, Signal, QRectF, QEvent, QTimer, QPointF
-from PySide6.QtGui import QPainter, QColor, QPen, QShortcut, QKeySequence
+from PySide6.QtGui import QPainter, QColor, QPen, QShortcut, QKeySequence, QFontMetrics
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QToolButton, QScrollArea, QFrame, QApplication,
-    QSizePolicy, QLineEdit, QStackedWidget,
+    QSizePolicy, QLineEdit, QStackedWidget, QSpacerItem,
 )
 from database import DatabaseError
 from domain import (
-    CATEGORIES, UNKNOWN_LABEL, format_cents, format_amount, describe_day, describe_month, shift_month,
+    CATEGORIES, format_cents, format_amount, describe_day, describe_month, shift_month,
     MIN_YEAR, group_by_day,
 )
-from ui import theme
-from ui.record_row import RecordRow, DayHeading  # noqa: F401  (DayHeading re-exported for tests)
+from ui import motion, theme
+from ui.capture_page import CurrencyMark, CURRENCY_OPTICAL
+from ui.record_row import (  # noqa: F401  (RecordRow, DayHeading, ROW_GAP re-exported for tests)
+    RecordRow, DayHeading, ROW_GAP, EDGE_ROOM, VALUE_TAIL,
+)
 
-COLUMN_WIDTH = 600
-DONUT_SIZE = 112
-RING_WIDTH = 14
+# One sheet of paper, read straight down: month, total, the month's shape, then the days.
+# Everything under the total hangs off one grid of two edges. Text starts at the text
+# edge — category names, day headings, times, descriptions — and values end at the value
+# edge — the ring and every record amount. The edges are MEASURE apart and sit evenly about
+# the centre line the month and the total are set on, so summary and history are one
+# column, not two blocks that happen to be stacked. The measure is short on purpose: a
+# record is read as one thing — what, and how much — not as a word at one side of the
+# window and a number at the other.
+MEASURE = 400             # text edge to value edge; the same width as Capture's column
+# The column is even about the centre line. A row carries the delete edge's room after its
+# values, so the list starts that much further in than the column does.
+COLUMN_WIDTH = MEASURE + 2 * VALUE_TAIL
+HISTORY_LEAD = EDGE_ROOM
+GUTTER = 10               # always reserved for the scroll bar, so the axis never shifts
+BODY_SIDE = 24            # minimum breathing room beside the axis
+HEADER_SIDE = 56
+HEADER_HEIGHT, HEADER_TOP, HEADER_BOTTOM = 76, 26, 4
+# The one line the header's controls are centred on: the month, the search glyph — and the
+# window's ⋮, which sits on it too rather than a little above, as a near miss.
+HEADER_LINE = HEADER_TOP + (HEADER_HEIGHT - HEADER_TOP - HEADER_BOTTOM) // 2
+SEARCH_SLOT = 32          # the search glyph's room, mirrored on the left so the month is centred
+# The search field is set on the grid: what is typed starts on the text edge, directly above
+# the descriptions it finds. Its text sits 1 (border) + 12 (padding) + 2 (Qt's margin) in.
+SEARCH_TEXT_INSET = 15
+SEARCH_WIDTH = MEASURE + 2 * SEARCH_TEXT_INSET
+SEARCH_MIN_WIDTH = 280    # a narrow window gives up the alignment before the field
+DONUT_SIZE = 98
+RING_WIDTH = 7
+STRUCTURE_GAP = 52        # the ring is a separate object; it needs its own air
+DOT_LEAD = 16             # a category's dot and its gap hang in the margin, before the text edge
+CATEGORY_WIDTH = MEASURE - STRUCTURE_GAP - DONUT_SIZE  # names to amounts
+MONTH_ARROW_WIDTH = 26
+TOTAL_CURRENCY_PX = 26
+TOTAL_TO_STRUCTURE = 32
+SUMMARY_TO_HISTORY = 72   # the overview closes, the records open
+MONTH_SHIFT = 10          # a second-order move: the month changed, not the space
+DAY_GAP = 36              # between two day groups
+HEADING_GAP = 12          # a day heading to its first record
 
 
 def month_is_current(year, month, now=None):
@@ -38,8 +76,10 @@ class DonutChart(QWidget):
         self.setAccessibleName("消费结构环形图")
 
     def set_totals(self, totals):
+        """Without a classified share there is no proportion to show, so there is no ring:
+        a grey circle over nothing but unjudged records would be decoration."""
         self.segments = [(theme.CATEGORY_COLORS[c], totals[c]) for c in CATEGORIES if totals[c] > 0]
-        if totals.get("unknown", 0) > 0:
+        if self.segments and totals.get("unknown", 0) > 0:
             self.segments.append((theme.UNKNOWN_COLOR, totals["unknown"]))
         self.update()
 
@@ -70,8 +110,8 @@ class CategoryLine(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
         self.dot = QLabel()
-        self.dot.setFixedSize(8, 8)
-        self.dot.setStyleSheet(f"background: {color}; border-radius: 4px;" if color else "background: transparent;")
+        self.dot.setFixedSize(6, 6)  # integer radius only: Qt squares off a fractional one
+        self.dot.setStyleSheet(f"background: {color}; border-radius: 3px;" if color else "background: transparent;")
         layout.addWidget(self.dot, 0, Qt.AlignmentFlag.AlignVCenter)
         self.name = QLabel(name)
         self.name.setFont(theme.font(13 if weak else 14))
@@ -89,46 +129,74 @@ class CategoryLine(QWidget):
 
 
 class SummaryBlock(QWidget):
+    """Month total, then the three categories as one compact group beside the ring.
+
+    With a ring, the group spans the page's grid: the names start at the text edge, their
+    dots hanging in the margin before it, and the ring ends at the value edge — the two
+    edges the records below hang off. Without one (nothing classified yet, so no proportion
+    to draw) there is no reason to hold its room: an empty slot would pull the three lines
+    off the centre line for an object that is not there. The group then moves onto the
+    centre line itself. Two states, each balanced; nothing in between.
+    """
+
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
         total_row = QHBoxLayout()
-        total_row.setSpacing(8)
+        total_row.setSpacing(0)  # the gap belongs to the mark, not to the layout
         total_row.addStretch()
-        self.currency = QLabel("¥")
-        self.currency.setFont(theme.font(22))
-        self.currency.setStyleSheet(f"color: {theme.TEXT_2}; padding-bottom: 6px;")
-        total_row.addWidget(self.currency, 0, Qt.AlignmentFlag.AlignBottom)
         self.total = QLabel("0.00")
-        self.total.setFont(theme.font(40, theme.MEDIUM, tabular=True))
+        self.total.setFont(theme.font(44, theme.MEDIUM, tabular=True))
         self.total.setStyleSheet(f"color: {theme.TEXT};")
         self.total.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.total.setAccessibleName("本月总支出")
+        metrics = QFontMetrics(self.total.font())
+        self.currency = CurrencyMark(TOTAL_CURRENCY_PX, metrics.height(), metrics.descent())
+        total_row.addWidget(self.currency, 0, Qt.AlignmentFlag.AlignBottom)
         total_row.addWidget(self.total, 0, Qt.AlignmentFlag.AlignBottom)
+        total_row.addSpacing(2 * CURRENCY_OPTICAL)  # see CurrencyMark: the pair, not its box
         total_row.addStretch()
         layout.addLayout(total_row)
-        layout.addSpacing(24)
+        layout.addSpacing(TOTAL_TO_STRUCTURE)
 
         self.structure = QWidget()
         structure = QHBoxLayout(self.structure)
         structure.setContentsMargins(0, 0, 0, 0)
-        structure.setSpacing(40)
+        structure.setSpacing(0)
         structure.addStretch()
         lines = QWidget()
-        lines.setFixedWidth(220)
+        lines.setFixedWidth(DOT_LEAD + CATEGORY_WIDTH)
         lines_layout = QVBoxLayout(lines)
         lines_layout.setContentsMargins(0, 0, 0, 0)
         lines_layout.setSpacing(10)
         self.lines = {c: CategoryLine(c, theme.CATEGORY_COLORS[c]) for c in CATEGORIES}
         for line in self.lines.values():
             lines_layout.addWidget(line)
-        self.unknown_line = CategoryLine(UNKNOWN_LABEL, None, weak=True)
-        lines_layout.addWidget(self.unknown_line)
+        # Not a fourth category: a quiet sentence that explains the remainder, with no dot,
+        # no warning colour and nothing to act on. It disappears entirely at zero.
+        self.unknown_note = QLabel()
+        self.unknown_note.setFont(theme.font(12))
+        self.unknown_note.setStyleSheet(f"color: {theme.TEXT_3};")
+        self.unknown_note.setTextFormat(Qt.TextFormat.PlainText)
+        self.unknown_note.setFixedHeight(16)  # a reserved line: appearing must not move the ring
+        self.unknown_note.setContentsMargins(DOT_LEAD, 0, 0, 0)  # on the text edge, like the names
+        self.unknown_note.setAccessibleName("尚未分类的金额")
+        lines_layout.addSpacing(6)
+        lines_layout.addWidget(self.unknown_note)
         structure.addWidget(lines, 0, Qt.AlignmentFlag.AlignVCenter)
+        # The ring and the air before it are one slot: a month without a ring gives both back.
+        self.chart_slot = QWidget()
+        self.chart_slot.setFixedSize(STRUCTURE_GAP + DONUT_SIZE, DONUT_SIZE)
+        slot_layout = QHBoxLayout(self.chart_slot)
+        slot_layout.setContentsMargins(STRUCTURE_GAP, 0, 0, 0)
         self.donut = DonutChart()
-        structure.addWidget(self.donut, 0, Qt.AlignmentFlag.AlignVCenter)
+        slot_layout.addWidget(self.donut)
+        structure.addWidget(self.chart_slot, 0, Qt.AlignmentFlag.AlignVCenter)
+        # Mirrors the hanging dots, so what the two stretches centre is the text and the ring
+        # (or the text alone): the dots stay in the margin in both states.
+        structure.addSpacing(DOT_LEAD)
         structure.addStretch()
         layout.addWidget(self.structure)
 
@@ -145,14 +213,42 @@ class SummaryBlock(QWidget):
         self.empty.setVisible(empty)
         for name, line in self.lines.items():
             line.set_cents(totals[name])
-        self.unknown_line.set_cents(totals["unknown"])
-        self.unknown_line.setVisible(totals["unknown"] > 0)
+        unknown = totals["unknown"]
+        self.unknown_note.setText(f"另有 {format_amount(unknown)} 尚未分类" if unknown else "")
         self.donut.set_totals(totals)
+        ring = bool(self.donut.segments)
+        self.donut.setVisible(ring)
+        self.chart_slot.setVisible(ring)  # no ring, no room kept for one
 
     def show_failure(self):
         self.total.setText("—")
         self.structure.hide()
         self.empty.hide()
+
+
+class DayGroup(QWidget):
+    """One day: its heading and its records. Keeping a day together means a record
+    leaving can close its own space, and the last record of a day can take the
+    heading with it — without the rest of the list snapping into place afterwards."""
+
+    def __init__(self, day, heading, parent=None):
+        super().__init__(parent)
+        self.day = day
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self.heading = DayHeading(heading)
+        layout.addWidget(self.heading)
+        layout.addSpacing(HEADING_GAP)
+        self._layout = layout
+        self.rows = []
+
+    def add_row(self, row):
+        self._layout.addWidget(row)  # each row carries the gap to the next one
+        self.rows.append(row)
+
+    def live_rows(self):
+        return [row for row in self.rows if not row.leaving]
 
 
 class HistoryList(QWidget):
@@ -166,8 +262,10 @@ class HistoryList(QWidget):
         self.ledger = ledger
         self._layout = QVBoxLayout(self)
         self._layout.setContentsMargins(0, 0, 0, 0)
-        self._layout.setSpacing(0)
+        self._layout.setSpacing(DAY_GAP - ROW_GAP)  # the last row of a day carries the rest
         self.rows = []
+        self._showing = None  # what the rows on screen currently say
+        self._with_year = False
 
     def clear(self):
         """Old rows must vanish now, not when the event loop gets to deleteLater:
@@ -180,25 +278,122 @@ class HistoryList(QWidget):
                 widget.setParent(None)
                 widget.deleteLater()
         self.rows = []
+        self._showing = None
+
+    @staticmethod
+    def _state(groups, headings_with_year):
+        return (headings_with_year, tuple(
+            (day, tuple((r["id"], r["datetime"], r["amount_cents"], r["description"], r["category"])
+                        for r in records)) for day, records in groups))
 
     def show_groups(self, groups, *, headings_with_year=False):
+        state = self._state(groups, headings_with_year)
+        if state == self._showing:
+            return  # the same records, already on screen: rebuilding would only cost time
         self.clear()
-        for index, (day, records) in enumerate(groups):
-            if index:
-                self._layout.addSpacing(24)
-            self._layout.addWidget(DayHeading(describe_day(day, with_year=headings_with_year)))
-            self._layout.addSpacing(6)
+        self._showing = state
+        self._with_year = headings_with_year
+        for day, records in groups:
+            group = DayGroup(day, describe_day(day, with_year=headings_with_year))
             for record in records:
                 row = RecordRow(record, self.ledger)
                 row.clicked.connect(self.row_clicked)
                 row.changed.connect(self.row_changed)
                 row.delete_requested.connect(self.row_delete)
                 row.edit_ended.connect(self.row_edit_ended)
-                self._layout.addWidget(row)
+                group.add_row(row)
                 self.rows.append(row)
+            self._layout.addWidget(group)
+
+    def live_rows(self):
+        """Rows the reader can still act on: a deleted record is gone from here the
+        moment it is deleted, even while it is still finishing its way off screen."""
+        return [row for row in self.rows if not row.leaving]
+
+    def start_leaving(self, row):
+        """Mark a deleted record as gone and hand back the widget that should leave —
+        the row, or the whole day if that was its last record."""
+        leaving = self.leaving_widget(row)
+        row.leaving = True
+        self._showing = None  # what is on screen no longer matches the ledger
+        return leaving
+
+    def forget(self, row):
+        """Take a record that has finished leaving out of the list — without rebuilding
+        the rest of it. What is on screen already matches the ledger."""
+        group = self.group_of(row)
+        target = group if group is not None and not group.live_rows() else row
+        self._layout.removeWidget(target) if target is group else None
+        target.setParent(None)
+        target.deleteLater()
+        if row in self.rows:
+            self.rows.remove(row)
+        self._recompute_showing()  # what is left already matches the ledger
+
+    def _recompute_showing(self):
+        groups = [(group.day, [row.record for row in group.live_rows()])
+                  for group in self.findChildren(DayGroup) if group.live_rows()]
+        groups.sort(key=lambda pair: pair[0], reverse=True)
+        self._showing = self._state(groups, self._with_year)
+
+    def group_of(self, row):
+        parent = row.parentWidget()
+        return parent if isinstance(parent, DayGroup) else None
+
+    def leaving_widget(self, row):
+        """The row, or the whole day when this was its last record."""
+        group = self.group_of(row)
+        if group is not None and group.live_rows() == [row]:
+            return group
+        return row
 
     def row_for(self, record_id):
-        return next((row for row in self.rows if row.record["id"] == record_id), None)
+        return next((row for row in self.live_rows() if row.record["id"] == record_id), None)
+
+
+class MonthArrow(QToolButton):
+    """One half of the month's navigation, painted rather than set in type.
+
+    A ‹ from the text font is four pixels of ink at this size and reads as a speck, so
+    the arrow is drawn: a chevron with the weight of a hairline, on the month's own
+    optical centre, close enough to the words to belong to them. It stays quiet — this
+    is how the month moves, not something to look at.
+    """
+    ARM = 3.4
+    REACH = 5.2
+
+    def __init__(self, direction, parent=None):
+        super().__init__(parent)
+        self.setObjectName("monthArrow")
+        self.direction = direction
+        self.setFixedSize(MONTH_ARROW_WIDTH, 30)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def ink_inset(self):
+        """How far the chevron's ink stays from the edge that faces the month."""
+        return (self.width() - 2 * self.ARM) / 2.0
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if not self.isEnabled():
+            color = QColor(theme.DISABLED_ARROW)
+        elif self.underMouse() or self.hasFocus():
+            color = QColor(theme.TEXT)
+        else:
+            color = QColor(theme.TEXT_2)
+        pen = QPen(color)
+        pen.setWidthF(1.5)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        cx, cy = self.width() / 2.0, self.height() / 2.0
+        tip = cx + self.ARM * self.direction      # the point leads the way the month moves
+        back = cx - self.ARM * self.direction
+        painter.drawLine(QPointF(back, cy - self.REACH), QPointF(tip, cy))
+        painter.drawLine(QPointF(tip, cy), QPointF(back, cy + self.REACH))
 
 
 class SearchGlyph(QToolButton):
@@ -249,40 +444,36 @@ class ReviewPage(QWidget):
         self._saved_scroll = 0
         self.header = QWidget()
         self.header.setObjectName("space")
-        self.header.setFixedHeight(64)
+        self.header.setFixedHeight(HEADER_HEIGHT)
         header_layout = QHBoxLayout(self.header)
-        header_layout.setContentsMargins(56, 12, 56, 4)
+        # + GUTTER on the right so the month sits on the same centre line as the body below it.
+        header_layout.setContentsMargins(HEADER_SIDE, HEADER_TOP, HEADER_SIDE + GUTTER, HEADER_BOTTOM)
         header_layout.setSpacing(0)
+        header_layout.addSpacing(SEARCH_SLOT)  # balances the search glyph on the right
         self.header_stack = QStackedWidget()
         self.header_stack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         month_row = QWidget()
         month_row.setObjectName("space")
         header = QHBoxLayout(month_row)
         header.setContentsMargins(0, 0, 0, 0)
-        header.setSpacing(4)
+        header.setSpacing(0)  # the distance to the month is the chevron's, not the layout's
         header.addStretch()
-        self.previous = QToolButton()
-        self.previous.setObjectName("monthArrow")
-        self.previous.setText("‹")
+        self.previous = MonthArrow(-1)
         self.previous.setAccessibleName("上一个月")
         self.previous.setToolTip("上一个月")
-        self.previous.setCursor(Qt.CursorShape.PointingHandCursor)
         self.previous.clicked.connect(lambda: self.change_month(-1))
         header.addWidget(self.previous)
         self.month_label = QPushButton()
         self.month_label.setObjectName("monthLabel")
-        self.month_label.setFont(theme.font(20, theme.MEDIUM))
+        self.month_label.setFont(theme.font(22, theme.MEDIUM))
         self.month_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self.month_label.setToolTip("回到本月")
         self.month_label.setAccessibleName("当前月份")
         self.month_label.clicked.connect(self.show_current_month)
         header.addWidget(self.month_label)
-        self.next = QToolButton()
-        self.next.setObjectName("monthArrow")
-        self.next.setText("›")
+        self.next = MonthArrow(1)
         self.next.setAccessibleName("下一个月")
         self.next.setToolTip("下一个月")
-        self.next.setCursor(Qt.CursorShape.PointingHandCursor)
         self.next.clicked.connect(lambda: self.change_month(1))
         header.addWidget(self.next)
         header.addStretch()
@@ -291,29 +482,43 @@ class ReviewPage(QWidget):
         search_row.setObjectName("space")
         search_layout = QHBoxLayout(search_row)
         search_layout.setContentsMargins(0, 0, 0, 0)
-        search_layout.setSpacing(4)
-        search_layout.addStretch()
+        search_layout.setSpacing(0)
+        search_layout.addStretch(1)
+        # Mirrors × and its gap, measured rather than assumed, so the search field keeps
+        # exactly the centre line the month label had.
+        self._search_mirror = QSpacerItem(SEARCH_SLOT + 4, 0, QSizePolicy.Policy.Fixed,
+                                          QSizePolicy.Policy.Minimum)
+        search_layout.addSpacerItem(self._search_mirror)
         self.search_field = QLineEdit()
         self.search_field.setObjectName("search")
         self.search_field.setPlaceholderText("搜索记录…")
         self.search_field.setClearButtonEnabled(False)
-        self.search_field.setFixedWidth(320)
+        self.search_field.setMinimumWidth(SEARCH_MIN_WIDTH)
+        self.search_field.setMaximumWidth(SEARCH_WIDTH)
+        self.search_field.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.search_field.setAccessibleName("搜索记录")
         self.search_field.textChanged.connect(lambda _: self._search_timer.start())
-        search_layout.addWidget(self.search_field)
+        search_layout.addWidget(self.search_field, 100)  # takes all it may; the stretches share the rest
+        search_layout.addSpacing(4)
         self.search_close = QToolButton()
-        self.search_close.setObjectName("monthArrow")
+        self.search_close.setObjectName("searchClose")
         self.search_close.setText("×")
         self.search_close.setAccessibleName("退出搜索")
         self.search_close.setToolTip("退出搜索")
         self.search_close.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.search_close.setFixedSize(32, 30)  # mirrored by _search_mirror, so Search keeps the centre line
         self.search_close.clicked.connect(self.exit_search)
         search_layout.addWidget(self.search_close)
-        search_layout.addStretch()
+        search_layout.addStretch(1)
+        self._search_layout = search_layout
         self.header_stack.addWidget(search_row)
         header_layout.addWidget(self.header_stack, 1)
         self.search_button = SearchGlyph()
         self.search_button.clicked.connect(self.enter_search)
+        # Its room is kept while it is hidden, so entering Search moves nothing.
+        policy = self.search_button.sizePolicy()
+        policy.setRetainSizeWhenHidden(True)
+        self.search_button.setSizePolicy(policy)
         header_layout.addWidget(self.search_button, 0, Qt.AlignmentFlag.AlignVCenter)
         outer.addWidget(self.header)
         self._search_timer = QTimer(self)
@@ -332,8 +537,10 @@ class ReviewPage(QWidget):
         self.scroll.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         body = QWidget()
         body.setObjectName("scrollBody")
-        body_layout = QVBoxLayout(body)
-        body_layout.setContentsMargins(24, 8, 24, 72)
+        self.body_layout = body_layout = QVBoxLayout(body)
+        # The month and the total are one statement, so the gap between them is the
+        # smallest of the three the page reads down through.
+        body_layout.setContentsMargins(BODY_SIDE, 8, BODY_SIDE + GUTTER, 76)
         body_layout.setSpacing(0)
         self.column = QWidget()
         self.column.setObjectName("scrollBody")
@@ -358,13 +565,16 @@ class ReviewPage(QWidget):
         self.no_results.setTextFormat(Qt.TextFormat.PlainText)
         self.no_results.hide()
         column.addWidget(self.no_results)
-        column.addSpacing(40)
+        column.addSpacing(SUMMARY_TO_HISTORY)
         self.history = HistoryList(ledger)
+        # Rows keep the delete edge's room after their values; starting the list that much
+        # further in puts their text and value edges exactly on the summary's.
+        self.history.layout().setContentsMargins(HISTORY_LEAD, 0, 0, 0)
         self.history.row_clicked.connect(self._row_clicked)
         self.history.row_changed.connect(self._row_changed)
         self.history.row_delete.connect(self._delete_row)
         self.history.row_edit_ended.connect(self._row_edit_ended)
-        column.addWidget(self.history)
+        column.addWidget(self.history)  # one grid for the whole column: no second measure here
         column.addStretch()
         # Centre with stretches, not with an alignment flag: an aligned widget only gets its
         # size hint, which would make the whole list jump when a row builds its editors.
@@ -376,7 +586,20 @@ class ReviewPage(QWidget):
         body_layout.addLayout(centred)
         self.scroll.setWidget(body)
         outer.addWidget(self.scroll, 1)
+        # The scroll bar's room is reserved on both sides of its appearance, so the
+        # reading axis sits at the same x whether a month scrolls or not.
+        self.scroll.verticalScrollBar().rangeChanged.connect(lambda *_: self._sync_axis())
         self.refresh()
+
+    # ---- the axis ------------------------------------------------------------
+    def _sync_axis(self):
+        """Give back the gutter exactly when the scroll bar takes it."""
+        bar = self.scroll.verticalScrollBar()
+        reserved = 0 if bar.maximum() > bar.minimum() else GUTTER
+        margins = self.body_layout.contentsMargins()
+        if margins.right() != BODY_SIDE + reserved:
+            self.body_layout.setContentsMargins(BODY_SIDE, margins.top(),
+                                                BODY_SIDE + reserved, margins.bottom())
 
     # ---- month ---------------------------------------------------------------
     def at_current_month(self):
@@ -386,9 +609,9 @@ class ReviewPage(QWidget):
         now = datetime.now()
         if (self.year, self.month) == (now.year, now.month) or not self.leave():
             return
+        direction = 1 if (now.year, now.month) > (self.year, self.month) else -1
         self.year, self.month = now.year, now.month
-        self.refresh()
-        self.scroll.verticalScrollBar().setValue(0)
+        self._show_month(direction)
 
     def change_month(self, delta):
         try:
@@ -401,8 +624,21 @@ class ReviewPage(QWidget):
         if not self.leave():
             return  # an invalid edit keeps the context until fixed or cancelled
         self.year, self.month = year, month
+        self._show_month(1 if delta > 0 else -1)
+
+    def _show_month(self, direction):
+        """A second-order change: the content of the same page moves a little, in the
+        direction the month moved. It must never read like a change of space."""
         self.refresh()
         self.scroll.verticalScrollBar().setValue(0)
+        self.animate_month(direction)
+
+    def animate_month(self, direction):
+        if not self.isVisible() or not motion.ENABLED:
+            return
+        self.body_layout.activate()  # settle the new month before taking its origin
+        motion.slide_home(self.column, MONTH_SHIFT * direction, motion.MONTH)
+        motion.fade_in(self.scroll.viewport(), 0.55, motion.MONTH)
 
     # ---- data -------------------------------------------------------------------
     def refresh(self, *, keep_scroll=False):
@@ -431,7 +667,7 @@ class ReviewPage(QWidget):
             self.scroll.verticalScrollBar().setValue(position)
 
     def rows(self):
-        return self.history.rows
+        return self.history.live_rows()
 
     # ---- search (a temporary Review state, never a third space) -------------
     def enter_search(self):
@@ -443,7 +679,7 @@ class ReviewPage(QWidget):
             return
         self.searching = True
         self._saved_scroll = self.scroll.verticalScrollBar().value()
-        self.header_stack.setCurrentIndex(1)
+        self._turn_header(1)
         self.search_button.hide()
         self.summary.hide()
         self.failure.hide()
@@ -458,7 +694,7 @@ class ReviewPage(QWidget):
         self.cancel_edit()
         self.searching = False
         self._search_timer.stop()
-        self.header_stack.setCurrentIndex(0)
+        self._turn_header(0)
         self.search_button.show()
         self.no_results.hide()
         self.summary.show()
@@ -466,6 +702,22 @@ class ReviewPage(QWidget):
         self.refresh()
         self.scroll.verticalScrollBar().setValue(self._saved_scroll)
         self.setFocus()
+
+    def _turn_header(self, index):
+        """The month area turns into the search area in place: same header, same height,
+        same centre line. Review changes state; it does not open a page."""
+        self.header_stack.setCurrentIndex(index)
+        self._balance_search_row()
+        motion.fade_in(self.header_stack, 0.0, motion.SEARCH)
+        motion.fade_in(self.scroll.viewport(), 0.55, motion.SEARCH)
+
+    def _balance_search_row(self):
+        # The width × actually gets (it is fixed), not its size hint: the hint depends on the
+        # font and can exceed the fixed box, which would push the field off the centre line.
+        width = self.search_close.width() + 4
+        if self._search_mirror.sizeHint().width() != width:
+            self._search_mirror.changeSize(width, 0, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum)
+            self._search_layout.invalidate()
 
     def _run_search(self, *, keep_scroll=False):
         if not self.searching:
@@ -550,11 +802,24 @@ class ReviewPage(QWidget):
         except DatabaseError as exc:
             self.notify(f"删除失败，这条记录仍然保留。{exc}", danger=True)
             return
-        self.refresh(keep_scroll=True)
+        # The ledger is already correct. The record leaves its own space, the totals
+        # follow at once, and nothing else in the list is rebuilt or moved.
+        self._drop_edit_state()
+        self._refresh_totals()
         text = f"已删除 {format_amount(snapshot['amount_cents'])}"
         if snapshot["description"]:
             text += f" · {snapshot['description']}"
         self.notify(text, undo=lambda: self._restore(snapshot))
+        motion.collapse(self.history.start_leaving(row), motion.RECORD,
+                        lambda: self.history.forget(row))
+
+    def _refresh_totals(self):
+        if self.searching:
+            return
+        try:
+            self.summary.set_totals(self.ledger.month(self.year, self.month).totals)
+        except DatabaseError:
+            pass  # the next full refresh reports it
 
     def _restore(self, snapshot):
         try:
@@ -563,6 +828,9 @@ class ReviewPage(QWidget):
             self.notify(f"无法恢复，这条记录仍处于已删除状态。{exc}", danger=True)
             return
         self.refresh(keep_scroll=True)
+        row = self.history.row_for(snapshot["id"])
+        if row is not None:
+            motion.fade_in(row, 0.0, motion.RECORD)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape:

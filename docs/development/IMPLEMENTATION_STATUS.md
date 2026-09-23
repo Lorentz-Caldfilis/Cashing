@@ -37,7 +37,7 @@ Rule kept from v1: the UI never writes SQL; everything goes through `Ledger`.
 
 ## Key decisions and gotchas (read before changing code)
 
-- **Category is a derived interpretation.** `records.category` is nullable in v2; `None` = "暂未判断", shown only as a very weak line in the Review summary (and a neutral light-grey arc in the ring) when non-zero. The total always includes it. Never a task, badge or fourth category.
+- **Category is a derived interpretation.** `records.category` is nullable in v2; `None` = 尚未分类, shown only as one very weak sentence under the three categories ("另有 ¥X 尚未分类", no dot, no colour, nothing to click) when non-zero, plus a neutral light-grey arc in the ring whenever a ring is drawn at all. The total always includes it. Never a task, badge or fourth category.
 - **v1 `饮食` → v2 `生活`.** The migration renames the first bucket (1:1, reversible via the backup). Migration = validate → SQLite `backup()` to `ledger.sqlite3.before-v2.bak` → `BEGIN IMMEDIATE` table rebuild → verify → commit; failures roll back leaving the v1 file byte-identical. Ids and `sqlite_sequence` are preserved.
 - **Classification is deliberately minimal** (Philosophy §4.5 layer 1 only). New records get the latest category the user gave an identical description (case-insensitive ASCII, trimmed); otherwise `None`. Replace `classification.py` when the Adaptive Classification spec is frozen.
 - **QSS must not set `font-size`/`font-family` on `QWidget`**: stylesheet fonts override `setFont` and flatten the type scale. Base font is set programmatically (`theme.BASE_PX`), sizes via `theme.font(px, weight, tabular)`.
@@ -74,22 +74,94 @@ Tests: new `test_migration.py`, `test_ledger.py`, `test_draft.py`, `test_ui_capt
 ## Follow-up round: edit-state convergence (row only)
 
 Scope limited to `ui/record_row.py` + the `#rowEdit` rules in `ui/theme.py` (+ tests). Editors read as text at rest
-(no underlines except a faint description hint), hover/focus underline only on the active field; time shows `HH:mm`
+(the description kept a faint hint underline and hover showed one too — both removed in the round below); time shows `HH:mm`
 and the full date only while focused (`_set_time_format` reopens the date range — QDateTimeEdit pins the range to the
 current date while only time sections are shown); `¥` fixed prefix + `FittedLineEdit` so the amount stays one
 right-anchored unit; category is a bare word with a small chevron; row padding 7 / lines 21+24 → 59 px in Rest and Edit
 (grid spacing 0 — QGridLayout dropped its 1 px row spacing after an edit, which made rows jump 59→58); delete edge
-2 px at 55 % alpha, expands to 36 px `删除` on approach; left bar unchanged (3 px accent). 176 tests, smoke ×2 PASS.
+2 px at 55 % alpha, expands to 36 px `删除` on approach; left bar unchanged at the time (3 px accent — dropped in the
+round below). 176 tests, smoke ×2 PASS.
+
+## Follow-up round: visual refinement / optical polish
+
+No new elements, no structural change, no motion change (`ui/motion.py` untouched). `ui/theme.py`, `ui/capture_page.py`,
+`ui/review_page.py`, `ui/record_row.py` (+ one test).
+
+- **Ink is five levels** and they are meant to be told apart by eye: `TEXT #1b2430` / `TEXT_2 #4e5b69` /
+  `TEXT_3 #87909c` / placeholder (~`#a7b0bc`, from `PLACEHOLDER_SOURCE` at Qt's half alpha) / disabled (an inert
+  surface, not faint text). The Capture description used to draw its prompt at half of `TEXT` — darker than the
+  amount's — and now shares the one placeholder level through the same `empty` property.
+- **Review summary is no longer stretched onto the history's anchors.** The three categories are a 260 px group
+  beside the ring, and the cluster sits on the page's centre line (`STRUCTURE_OPTICAL` 6 px left of it: words on the
+  left, a dense ring on the right). The ring is 98/7 instead of 116/9. `SUMMARY_TO_HISTORY` 52 → 72 and the body's
+  top margin 18 → 8, so the page reads month → total (tight) → shape → records (open).
+- **`¥` is part of the number.** `CurrencyMark` paints the mark on the digits' own baseline with one optical gap
+  (bottom-aligning two fonts left it ~2 px high and ~2 digits away); the pair is set `CURRENCY_OPTICAL` left of the
+  box centre so the digits land on the axis. An empty amount mutes the mark with the digits. In a record the mark
+  is `TEXT_2` at rest too (`RowAmount`), which is what Edit already showed.
+- **Month navigation is painted** (`MonthArrow`): `‹` at 22 px is four pixels of ink. Chevron on the month's optical
+  centre, ~15 px from the words; the label's padding is uneven because 月 has the wider side bearing.
+- **Edit sheds its form.** No line under any field at rest, none on hover; the focused field paints a line as wide as
+  its own text, just clear of it. The left accent bar is gone — `ACCENT_TINT` was within a hair of `HOVER`, so the
+  bar was carrying the whole difference; Hover is now `#f1f3f6` and Edit `#e9edf4`, which separates them on their own.
+- Rest/Edit ink verified equal at 1.5× on both lines (left ≤0.7 px, right edges equal); the time now shares the
+  amount's baseline (`TIME_BASELINE_PAD`, mirrored in the editor's text margins).
+- Capture: `TEXT_TO_TIME` 2 / `TIME_TO_ACTION` 36 so what+when is a pair and the action stands apart; the visible
+  group sits at ~43 % of the window (`ABOVE`/`BELOW` place the visible group, not the column, which carries a
+  reserved error slot); the record button is 96×34 r5 on `ACTION` (the accent lightened one step, white still at AA).
+
+178 tests, no-motion run, smoke ×2 (43 / 46 checks, empty stderr). Screenshots reviewed: Capture empty / typed /
+focused, Review unclassified / classified / history / edit / search / toast, at 1000×760 and 1320×860.
+
+## Follow-up round: aesthetic synthesis pass
+
+No new elements, information, motion or structure. `domain.py` (dates), `ui/review_page.py`, `ui/record_row.py`,
+`ui/theme.py`, `ui/main_window.py` (+ tests, README). Measured, not eyeballed: ink probes compare Rest/Edit per field.
+
+- **One grid for Review.** `MEASURE = 400` (Capture's column width) from the text edge to the value edge. Category
+  names, the unknown note, day headings, times and descriptions start on the text edge; the ring and every record amount
+  end on the value edge; the two edges sit evenly about the centre line the month and total use. Rows keep the delete
+  edge's room after their values, so the list starts `HISTORY_LEAD` (= `EDGE_ROOM`) into a `COLUMN_WIDTH` column that is
+  symmetric about the axis (before: a 612 px record span whose ink sat 22 px left of the axis). Category dots hang in
+  the margin (`DOT_LEAD`) so the names, not the dots, are on the edge.
+- **No ring, no slot.** The ring and the air before it are one `chart_slot`; a month with nothing classified hides it
+  and the three lines move onto the centre line (spatial stability yields to balance here, by decision).
+- **Edit is a bar, not a card.** `ACCENT_TINT` `#e9edf4` → `#eef1f5` (a shade above Hover) and a 2 px accent bar
+  beside the two text lines carries the state (the Visual spec's "细 Accent 色条 + 极弱背景"). Radius unchanged.
+- **Chinese dates**: `2026年9月`, `9月22日 星期二`, `9月18日 12:00` — no Western space between digits and 年/月/日.
+  Month label padding rebalanced for the new string (chevron gaps 16.0 / 16.0 px).
+- **Edit moved text and clipped it** (the previous check read left edges, which the clip hid): time and description
+  shifted 2 px left and lost their first stroke (晚); ¥ was 2 px narrower than its glyph; the amount's caret at the end
+  sat outside the field (never drawn). Now: `TIME_TEXT_NUDGE -6`, `DESCRIPTION_TEXT_NUDGE -2`, ¥ at full advance, the
+  whole value column keeps `CARET_ROOM` in both states, amount field margins `(-2, -2)`. Resting labels that an editor
+  replaces draw on the editor's own baseline (`field_baseline`: whole-pixel line top + fractional ascent, as QLineEdit
+  does) — Rest = Edit to ≤0.04 px at 1.25×/1.5×/1.75×/2×/2.5×; before, the digits dropped a device pixel at 2×.
+- **Search field on the grid**: max width `MEASURE + 30`, so the typed query starts on the text edge above the
+  descriptions it finds (shrinks to 280 on narrow windows). The mirror that centres it now uses ×'s fixed width, not its
+  font-dependent size hint (which pushed the field 12 px off centre under other fonts).
+- **⋮ on the header line** (`HEADER_LINE`), level with the month and 🔍 instead of 19 px above them; same place in Capture.
+
+182 tests (+4: shared grid, no-ring room, caret/¥ in Edit, query on the text edge; the utility test also checks the
+header line), `-W error`,
+no-motion run, smoke ×2 (43 / 46 checks, empty stderr), pyflakes clean on touched files.
 
 ## Needs human visual acceptance
 
 - Trackpad two-finger horizontal swipe: direction, threshold feel, no interference with vertical scrolling.
 - Edge-zone chevron on hover, delete-edge expansion on approach, row hover/edit tint strength (synthetic mouse moves produce no enter events).
-- Slide animation feel (180 ms OutCubic), toast fade, time popover placement, category chevron, ring proportions, overall spacing on a real 100 %/125 %/150 % display.
-- A month where every record is still 暂未判断 shows three ¥0.00 lines and a fully grey ring (honest but bare) — decide if acceptable until the classifier exists.
+- Motion feel on a real display: one curve (cubic-bezier 0.2, 0, 0, 1) and one duration table in `ui/motion.py`
+  — press 90, hover 110, focus 140, edit 150, month 160, search 170, toast 180, record 200, space 200 ms.
+  `CASHING_NO_MOTION=1` turns all of it off; every state still arrives, which is how the static composition is checked.
+- Slide feel, toast fade, time popover placement, category chevron, ring proportions, overall spacing on a real 100 %/125 %/150 % display.
+- A month where every record is still unclassified shows three ¥0.00 lines and no ring: without a classified share there is no proportion to draw.
+  The lines then sit on the centre line; classifying a record brings the ring back and the lines return to the grid at once (no animation).
+- The 400 px measure at wide windows (1320+), the Edit accent bar's strength, and the ⋮'s new height in Capture.
 
 ## Known issues / open decisions
 
 - Version still reads 1.0.0 (`main.py`, `version_info.txt`, README title, `package_release.py` NAME); a release of this UI should bump it — not done here.
 - `DeleteEdge` hit zone is the whole reserved 44 px room (the painted strip is 3 px) so it can be reached; the strip itself is small by design.
 - Windows 10, clean machines, real IME input, multi-monitor moves: not verified (same limits as v1).
+- Rebuilding a month's rows costs ~3 ms per record (Qt style-sheet polish dominates), so a 200-record month takes
+  ~600 ms. Refreshes now skip the rebuild when the records are unchanged, and a delete removes only its own row,
+  so this is paid once per real data change — but saving a record on a very heavy month still shows it.

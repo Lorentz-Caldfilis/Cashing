@@ -2,7 +2,7 @@
 from datetime import datetime
 import pytest
 from PySide6.QtCore import Qt, QPoint, QEvent, QCoreApplication
-from PySide6.QtGui import QMouseEvent
+from PySide6.QtGui import QMouseEvent, QFontMetrics
 from PySide6.QtWidgets import QApplication
 from database import DatabaseError
 from ui.main_window import MainWindow, CAPTURE, REVIEW
@@ -148,10 +148,10 @@ def test_category_changes_at_once_including_back_to_unknown(page, qtbot, databas
     row.category_box.setCurrentText("娱乐")
     assert database.get_record(row.record["id"])["category"] == "娱乐"
     assert page.summary.lines["娱乐"].amount.text() == "¥36.00"
-    assert not page.summary.unknown_line.isVisibleTo(page)
+    assert page.summary.unknown_note.text() == ""
     row.category_box.setCurrentText("暂未判断")
     assert database.get_record(row.record["id"])["category"] is None
-    assert page.summary.unknown_line.isVisibleTo(page) and page.summary.unknown_line.amount.text() == "¥36.00"
+    assert page.summary.unknown_note.text() == "另有 ¥36.00 尚未分类"
     qtbot.keyClick(row.category_box, Qt.Key.Key_Return)
     assert not row.editing and row.category_name.text() == "" and row.category_dot.isHidden()
 
@@ -263,13 +263,30 @@ def test_edit_keeps_the_row_height_and_reads_as_the_same_record(page, qtbot):
     before = settled_geometry(page, row, qtbot)
     click(qtbot, row, "description")
     assert settled_geometry(page, row, qtbot) == before  # entering Edit moves nothing
-    # Fields read as text: no underline at rest except the faint description hint; ¥ is a fixed prefix.
+    # Fields read as text. Nothing is underlined at rest, and the focused field's line is
+    # as wide as its own text — never the width of the row. ¥ stays a fixed prefix.
     assert row.amount_currency.text() == "¥" and row.amount_edit.text() == "28.50"
-    assert row.description_edit.property("field") == "description"
+    assert row.description_edit.hasFocus()
+    assert row.description_edit.underline_rect().width() < row.description_edit.width() / 2
+    assert row.amount_edit._focus.value() == 0.0  # an unfocused field draws nothing at all
     assert row.time_edit.displayFormat() == "HH:mm" and row.time_edit.text() == "18:42"
     assert row.edge.span() == EDGE_COLLAPSED and EDGE_COLLAPSED <= 3
     qtbot.keyClick(row.description_edit, Qt.Key.Key_Escape)
     assert settled_geometry(page, row, qtbot) == before
+
+
+def test_the_amount_is_opened_whole_mark_and_caret_included(page, qtbot):
+    """Edit shows the amount the record showed: ¥ keeps its full advance instead of being
+    cut to make room, and the caret after the last digit is drawn inside the field."""
+    row = page.rows()[0]
+    click(qtbot, row, "amount")
+    editor = row.amount_edit
+    assert editor.hasFocus() and editor.cursorPosition() == len(editor.text())
+    assert editor.cursorRect().center().x() < editor.width()
+    assert row.amount_currency.width() == QFontMetrics(row.amount_currency.font()).horizontalAdvance("¥")
+    # Rest and Edit end the value column on the same line.
+    assert (row.amount_unit.geometry().right() == row.amount.geometry().right()
+            == row.category.geometry().right() == row.category_box.geometry().right())
 
 
 def test_time_shows_the_short_form_and_the_full_date_only_while_focused(page, qtbot, database):
@@ -285,4 +302,4 @@ def test_time_shows_the_short_form_and_the_full_date_only_while_focused(page, qt
     assert database.get_record(row.record["id"])["datetime"] == "2026-09-19 09:05"
     press_outside(page)
     assert page.editing_row is None
-    assert [r.record["description"] for r in page.rows()][-1] == "晚饭"  # re-sorted into 9 月 19 日
+    assert [r.record["description"] for r in page.rows()][-1] == "晚饭"  # re-sorted into 9月19日

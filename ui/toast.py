@@ -1,10 +1,11 @@
 """Bottom-centre overlay for light feedback and Undo. Floats; never moves the layout."""
-from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, Signal
+from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QGraphicsOpacityEffect
+from ui import motion
 
 DURATION_MS = 5000
 ERROR_DURATION_MS = 8000
-BOTTOM_GAP = 52  # above the page dots
+BOTTOM_GAP = 56  # above the page dots
 
 
 class Toast(QFrame):
@@ -34,8 +35,8 @@ class Toast(QFrame):
         self._opacity.setOpacity(0.0)
         self.setGraphicsEffect(self._opacity)
         self._fade = QPropertyAnimation(self._opacity, b"opacity", self)
-        self._fade.setDuration(140)
-        self._fade.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._fade.setDuration(motion.TOAST)
+        self._fade.setEasingCurve(motion.curve())
         self.hide()
 
     # ---- API ------------------------------------------------------------

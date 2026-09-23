@@ -109,9 +109,10 @@ def schedule_smoke_check(app, window, database, directory):
             app.processEvents()
             check(len(review.rows()) == 3, "three_records")
             check(review.summary.total.text() == "178.50", "monthly_total")
-            check(review.summary.unknown_line.isVisibleTo(review) and review.summary.unknown_line.amount.text() == "¥178.50",
+            check(review.summary.unknown_note.text() == "另有 ¥178.50 尚未分类",
                   "unknown_amount_shown_weakly")
-            check(len(review.summary.donut.segments) == 1, "ring_drawn")
+            # Nothing is classified yet, so there is no proportion and no ring.
+            check(not review.summary.donut.segments and review.summary.donut.isHidden(), "no_ring_without_structure")
             settle(120)
             check(window.grab().save(str(directory / "02-review.png")), "review_screenshot")
 
@@ -126,7 +127,8 @@ def schedule_smoke_check(app, window, database, directory):
             QTest.keyClick(row.amount_edit, Qt.Key.Key_Return)
             app.processEvents()
             check(not row.editing and review.summary.total.text() == "188.51", "amount_edit_committed_on_enter")
-            check(len(review.summary.donut.segments) == 2, "ring_follows_edit")
+            check(len(review.summary.donut.segments) == 2 and not review.summary.donut.isHidden(),
+                  "ring_follows_edit")
 
             # Delete edge + undo.
             row = review.rows()[0]
