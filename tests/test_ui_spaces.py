@@ -6,6 +6,7 @@ from PySide6.QtWidgets import QApplication
 from ui import motion
 from ui.main_window import MainWindow, DOTS_BOTTOM, CAPTURE, REVIEW
 from ui import spaces
+from ui.spaces import FOOTER_HEIGHT
 
 
 @pytest.fixture
@@ -138,3 +139,25 @@ def test_overlays_follow_the_window(window, qtbot):
     assert abs(window.dots.x() + window.dots.width() // 2 - central.width() // 2) <= 1
     assert window.dots.y() + window.dots.height() == central.height() - DOTS_BOTTOM
     assert window.right_edge.x() + window.right_edge.width() == central.width()
+
+
+def test_both_spaces_share_one_axis_and_one_footer_band(window, qtbot, database):
+    """Capture, Review, the dots and the toast are centred on the window's own centre line,
+    and the Review list stops at the footer band: no record is ever drawn under the dots."""
+    from datetime import datetime
+    for day in range(1, 29):
+        database.add_record(100 * day, datetime(2026, 9, day, 12, 0), "生活", f"记录 {day}")
+    window.switch_to(REVIEW, animate=False)
+    page = window.review
+    page.year, page.month = 2026, 9
+    page.refresh()
+    page.body_layout.activate()
+    qtbot.wait(20)
+    central = window.centralWidget()
+    centre = central.width() / 2
+    column = page.column.mapTo(central, page.column.rect().center())
+    assert abs(column.x() + 0.5 - centre) <= 1  # with the scroll bar showing
+    assert abs(window.dots.geometry().center().x() + 0.5 - centre) <= 1
+    viewport = page.scroll.viewport()
+    bottom = viewport.mapTo(central, viewport.rect().bottomLeft()).y()
+    assert bottom < central.height() - FOOTER_HEIGHT <= window.dots.y()

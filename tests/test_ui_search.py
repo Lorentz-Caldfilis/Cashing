@@ -158,3 +158,33 @@ def test_utility_is_a_quiet_overlay_on_both_spaces(window, qtbot, tmp_path, data
     assert window.data_directory == tmp_path
     # No settings, no third space: the menu is the whole utility surface.
     assert isinstance(utility.menu(), QMenu) and len(actions) == 2
+
+
+def test_close_sits_inside_the_field_where_the_magnifier_stood(page, qtbot):
+    glyph = page.search_button
+    before = glyph.mapTo(page, glyph.rect().center()).x()
+    page.enter_search()
+    qtbot.wait(10)
+    close = page.search_close
+    assert close.parentWidget() is page.search_field  # inside the field, as in [ 搜索记录…  × ]
+    assert abs(close.mapTo(page, close.rect().center()).x() - before) <= 1
+    qtbot.mouseClick(close, Qt.MouseButton.LeftButton)
+    assert not page.searching
+
+
+def test_utility_menu_hangs_from_its_button_inside_the_window(window, qtbot):
+    utility = window.utility
+    window.utility_menu.popup(utility.mapToGlobal(QPoint(0, utility.height())))  # where Qt would put it
+    qtbot.waitUntil(window.utility_menu.isVisible, timeout=1000)
+    menu = window.utility_menu.geometry()
+    right = utility.mapToGlobal(QPoint(utility.width(), 0)).x()
+    assert menu.right() + 1 == right and menu.top() > utility.mapToGlobal(QPoint(0, utility.height())).y() - 1
+    window.utility_menu.close()
+
+
+def test_a_click_never_leaves_focus_on_a_header_control(page, qtbot):
+    qtbot.mouseClick(page.previous, Qt.MouseButton.LeftButton)
+    qtbot.mouseClick(page.month_label, Qt.MouseButton.LeftButton)
+    for control in (page.previous, page.next, page.month_label, page.search_button, page.window().utility):
+        assert not control.hasFocus()
+        assert control.focusPolicy() == Qt.FocusPolicy.TabFocus  # still reachable from the keyboard

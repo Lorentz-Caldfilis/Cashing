@@ -22,6 +22,7 @@ from domain import CATEGORIES, UNKNOWN_LABEL, format_amount, cents_to_input, par
 from ledger import UNSET
 from ui import motion, theme
 from ui.capture_page import QuietLineEdit, normalize_amount_text
+from ui.controls import QuietDateTimeEdit, DATE_TEXT_NUDGE
 
 EDGE_ROOM = 44          # right-hand room reserved for the delete edge (hit zone)
 EDGE_COLLAPSED = 2      # the visible strip at rest: a hint of danger, not an offer
@@ -41,7 +42,7 @@ ROW_GAP = 12            # carried by the row itself, so a deleted row takes its 
 # x where the resting label drew it: a QLineEdit starts its text 2 px inside its box, and
 # the date edit's own line edit sits a further 4 px in. Pull back by exactly that and no
 # further — past the box edge the first stroke of a glyph is clipped (晚 lost its left side).
-TIME_TEXT_NUDGE = -6
+TIME_TEXT_NUDGE = DATE_TEXT_NUDGE
 DESCRIPTION_TEXT_NUDGE = -2
 # The amount editor ends its digits CARET_ROOM inside its box, where the resting amount ends
 # them too, so the caret after the last digit is drawn instead of falling off the edge.
@@ -292,44 +293,6 @@ class FittedLineEdit(QuietLineEdit):
 
     def minimumSizeHint(self):
         return self.sizeHint()
-
-
-class QuietDateTimeEdit(QDateTimeEdit):
-    """The time, editable, with the same restraint as the other fields: no box, and a
-    focus line only as wide as the time it underlines."""
-
-    def __init__(self, parent=None, *, line_lift=0):
-        super().__init__(parent)
-        self._line_lift = line_lift
-        self._focus = motion.Blend(self, motion.FOCUS, self.update)
-
-    def focusInEvent(self, event):
-        super().focusInEvent(event)
-        self._focus.set(True)
-
-    def focusOutEvent(self, event):
-        super().focusOutEvent(event)
-        self._focus.set(False)
-
-    def paintEvent(self, event):
-        super().paintEvent(event)
-        weight = self._focus.value()
-        if weight <= 0.001:
-            return
-        metrics = QFontMetrics(self.font())
-        width = min(metrics.horizontalAdvance(self.text()) + 4, self.width())
-        paint_focus_line(self, QRectF(0, self.height() - self._line_lift - 1.0, width, 1.0), weight)
-
-
-def paint_focus_line(widget, rect, weight):
-    """The one mark a focused field makes: a hairline under its own text."""
-    painter = QPainter(widget)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    color = QColor(theme.ACCENT_SOFT)
-    color.setAlphaF(weight)
-    painter.setPen(Qt.PenStyle.NoPen)
-    painter.setBrush(color)
-    painter.drawRect(rect)
 
 
 class RowAmount(QLabel):

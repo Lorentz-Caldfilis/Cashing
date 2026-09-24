@@ -264,3 +264,21 @@ def test_widgets_are_destroyed_after_close(database, qtbot):
     gc.collect()
     assert donut() is None
     assert review() is None
+
+
+def test_scroll_edges_appear_only_while_records_continue(window, qtbot, database):
+    for day in range(1, 29):
+        database.add_record(100 * day, datetime(2026, 9, day, 12, 0), "生活", f"记录 {day}")
+    page = window.review
+    window.switch_to(REVIEW, animate=False)
+    september(page)
+    qtbot.wait(20)
+    bar = page.scroll.verticalScrollBar()
+    assert bar.maximum() > 0
+    qtbot.waitUntil(lambda: not page.top_edge.shown() and page.bottom_edge.shown(), timeout=1000)
+    bar.setValue(bar.maximum() // 2)
+    qtbot.waitUntil(lambda: page.top_edge.shown() and page.bottom_edge.shown(), timeout=1000)
+    bar.setValue(bar.maximum())
+    qtbot.waitUntil(lambda: page.top_edge.shown() and not page.bottom_edge.shown(), timeout=1000)
+    page.change_month(-1)  # an empty month fits: no edge at all
+    qtbot.waitUntil(lambda: not page.top_edge.shown() and not page.bottom_edge.shown(), timeout=1000)

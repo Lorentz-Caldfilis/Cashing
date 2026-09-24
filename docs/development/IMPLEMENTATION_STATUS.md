@@ -145,6 +145,36 @@ No new elements, information, motion or structure. `domain.py` (dates), `ui/revi
 header line), `-W error`,
 no-motion run, smoke ×2 (43 / 46 checks, empty stderr), pyflakes clean on touched files.
 
+## Follow-up round: productization / completion pass
+
+Why it read as a script: no window skeleton (the list slid under the page dots and was sliced by an
+unmarked edge under the month; Review sat 5 px off the window's centre line; the search glyph hugged the
+window edge), controls that were not one family (26×30 / 32×30 / 32×32 boxes, font glyphs beside painted
+ones, no pressed state), focus that leaked from the mouse (a frame stayed on the time or the month after a
+click), popups that behaved like defaults (a box inside the time layer writing `2026-09-23`; the ⋮ menu
+hanging outside the window), and a toast that blinked out. No information, structure or motion curve added.
+
+- **Skeleton.** One axis: `PAGE_SIDE` reserves the scroll-bar gutter on both sides, so Review, Capture, the
+  dots and the toast share the window's centre line. `FOOTER_HEIGHT` (in `ui/spaces.py`) is a band the dots
+  sit on the middle of (`DOTS_BOTTOM` derived); the Review list stops above it, and the toast rests on it.
+  `EdgeLine` hairlines at the header and footer edges fade in only while records continue past that edge.
+- **Header on the grid.** The header uses the body's centred column: month centred, the search glyph's ink
+  ending on the value edge (`SEARCH_GLYPH_CENTRE`), ⋮ kept at the window corner (window-level). × lives
+  inside the search field (`SearchField`), centred exactly where the magnifier was (the IA's `[ 搜索记录… × ]`).
+- **One control family** (`ui/controls.py`): `IconButton` → `ChevronButton`, `SearchButton`, `CloseButton`,
+  `MoreButton`; 32 px, one 1.5 px stroke, painted ⋮ and ×, hover / `PRESSED` surfaces blended with the existing
+  HOVER / PRESS durations, a `FOCUS_RING` (3.3:1) for keyboard focus. Every button — icon or text (month, time,
+  记录, 现在, 撤销) — takes focus from the keyboard only (`TabFocus`), so a click never leaves a frame; text
+  buttons gained `:pressed`. `QuietDateTimeEdit` moved here (shared by the row editor and the time layer).
+- **Popups.** The time layer is one object: `QuietDateTimeEdit` in `yyyy年M月d日 HH:mm`, no inner box, same
+  focus line as a record's time. The ⋮ menu (`AnchoredMenu`) opens under its button, right edges aligned.
+- **Toast** fades out on expiry with the same curve and duration it fades in with; the undo is withdrawn at
+  once, and Undo itself still hides it immediately.
+
+189 tests (+7: shared axis / footer band, scroll edges, × in the magnifier's place, anchored menu, no focus
+after clicks, time-layer format and focus return, toast fade-out), `-W error`, no-motion run, smoke ×2
+(43 / 46, empty stderr). Rest = Edit ink still exact at 1.5×.
+
 ## Needs human visual acceptance
 
 - Trackpad two-finger horizontal swipe: direction, threshold feel, no interference with vertical scrolling.
@@ -156,6 +186,8 @@ no-motion run, smoke ×2 (43 / 46 checks, empty stderr), pyflakes clean on touch
 - A month where every record is still unclassified shows three ¥0.00 lines and no ring: without a classified share there is no proportion to draw.
   The lines then sit on the centre line; classifying a record brings the ring back and the lines return to the grid at once (no animation).
 - The 400 px measure at wide windows (1320+), the Edit accent bar's strength, and the ⋮'s new height in Capture.
+- Scroll-edge hairlines and the footer band on a real display; the keyboard focus ring's strength; the time layer's
+  width (QDateTimeEdit sizes for its longest date).
 
 ## Known issues / open decisions
 

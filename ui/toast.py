@@ -2,10 +2,11 @@
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QGraphicsOpacityEffect
 from ui import motion
+from ui.spaces import FOOTER_HEIGHT
 
 DURATION_MS = 5000
 ERROR_DURATION_MS = 8000
-BOTTOM_GAP = 56  # above the page dots
+BOTTOM_GAP = FOOTER_HEIGHT + 8  # rests just above the footer band, never over the page dots
 
 
 class Toast(QFrame):
@@ -37,6 +38,7 @@ class Toast(QFrame):
         self._fade = QPropertyAnimation(self._opacity, b"opacity", self)
         self._fade.setDuration(motion.TOAST)
         self._fade.setEasingCurve(motion.curve())
+        self._fade.finished.connect(self._faded)
         self.hide()
 
     # ---- API ------------------------------------------------------------
@@ -60,8 +62,23 @@ class Toast(QFrame):
         self._timer.start(ERROR_DURATION_MS if danger else DURATION_MS)
 
     def dismiss(self):
+        """Time is up: the offer ends at once, and the surface leaves the way it came in."""
         self._timer.stop()
-        self._expire_pending()
+        self._expire_pending()  # a click during the fade finds nothing left to undo
+        if not motion.ENABLED or not self.isVisible():
+            self._hide_now()
+            return
+        self._fade.stop()
+        self._fade.setStartValue(self._opacity.opacity())
+        self._fade.setEndValue(0.0)
+        self._fade.start()
+
+    def _faded(self):
+        if self._opacity.opacity() <= 0.001:
+            self.hide()
+
+    def _hide_now(self):
+        self._fade.stop()
         self.hide()
         self._opacity.setOpacity(0.0)
 
@@ -86,7 +103,6 @@ class Toast(QFrame):
     def _run_undo(self):
         action, self._action = self._action, None
         self._timer.stop()
-        self.hide()
-        self._opacity.setOpacity(0.0)
+        self._hide_now()  # the undo has happened: the offer goes with it, at once
         if action is not None:
             action()

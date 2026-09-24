@@ -28,6 +28,10 @@ TEXT_2 = "#4e5b69"      # 2 secondary
 TEXT_3 = "#87909c"      # 3 tertiary — still readable at a glance, never a grey smear
 HAIRLINE = "#e5e8ec"
 HOVER = "#f1f3f6"       # the weakest state: the pointer passed here, nothing more
+PRESSED = "#e5e9ee"     # a press: one clear step below Hover, so the hand is answered
+# Keyboard focus. Controls take focus from the keyboard only, so the ring never lingers
+# after a click and can afford to be plainly visible: 3:1 on the page and on Hover.
+FOCUS_RING = "#7a8a9d"
 # Qt draws a placeholder at half the field's colour, and a style sheet always wins over the
 # palette — so an empty field sets this colour and lands on ~#a7b0bc over the background:
 # one clear step weaker than TEXT_3, and nowhere near the grey of a disabled control.
@@ -102,38 +106,27 @@ QPushButton#time {{
     background: transparent; border: 1px solid transparent; border-radius: 6px;
     padding: 3px 10px; color: {TEXT_3}; font-size: 14px; }}
 QPushButton#time:hover {{ background: {HOVER}; color: {TEXT_2}; }}
-QPushButton#time:focus {{ border-color: {ACCENT_SOFT}; color: {TEXT_2}; }}
+QPushButton#time:pressed {{ background: {PRESSED}; color: {TEXT_2}; }}
+QPushButton#time:focus {{ border-color: {FOCUS_RING}; color: {TEXT_2}; }}
 QLabel#error {{ color: {DANGER}; font-size: 13px; }}
 QLabel#errorDetail {{ color: {TEXT_3}; font-size: 12px; }}
 
-/* Review header. The arrows paint themselves (MonthArrow); the rule only gives them
-   the same quiet hover and focus as everything else. */
-QToolButton#monthArrow {{ background: transparent; border: 1px solid transparent; border-radius: 6px;
-    color: {TEXT_2}; font-size: 22px; padding: 0px; }}
-QToolButton#monthArrow:hover {{ background: {HOVER}; color: {TEXT}; }}
-QToolButton#monthArrow:focus {{ border-color: {ACCENT_SOFT}; }}
-QToolButton#monthArrow:disabled {{ color: {DISABLED_ARROW}; }}
-/* The month ends in 月, whose right side bearing is wider than the first digit's left one,
+/* Review header. The arrows, search, close and ⋮ are one painted family (ui/controls.py).
+   Text buttons follow the same three states: hover, a darker press, a keyboard-only ring.
+   The month ends in 月, whose right side bearing is wider than the first digit's left one,
    so the box is padded unevenly to leave the ink evenly spaced between the two chevrons
    (measured on 2026年9月: 15.7 px of air on each side). */
 QPushButton#monthLabel {{ background: transparent; border: 1px solid transparent; border-radius: 6px;
     color: {TEXT}; padding: 2px 3px 2px 5px; }}
 QPushButton#monthLabel:hover {{ background: {HOVER}; }}
-QPushButton#monthLabel:focus {{ border-color: {ACCENT_SOFT}; }}
+QPushButton#monthLabel:pressed {{ background: {PRESSED}; }}
+QPushButton#monthLabel:focus {{ border-color: {FOCUS_RING}; }}
 
 /* Search */
 QLineEdit#search {{ background: {SURFACE}; border: 1px solid {HAIRLINE}; border-radius: 8px;
     padding: 5px 12px; font-size: 15px; color: {TEXT}; selection-background-color: {ACCENT_SOFT};
     selection-color: {TEXT}; }}
 QLineEdit#search:focus {{ border-color: {ACCENT_SOFT}; }}
-QToolButton#searchGlyph {{ background: transparent; border: 1px solid transparent; border-radius: 6px; }}
-/* Leaving Search is a way out, not a thing to look at: one size below the field's text. */
-QToolButton#searchClose {{ background: transparent; border: 1px solid transparent; border-radius: 6px;
-    color: {TEXT_3}; font-size: 17px; padding: 0px; }}
-QToolButton#searchClose:hover {{ background: {HOVER}; color: {TEXT_2}; }}
-QToolButton#searchClose:focus {{ border-color: {ACCENT_SOFT}; }}
-QToolButton#searchGlyph:hover {{ background: {HOVER}; }}
-QToolButton#searchGlyph:focus {{ border-color: {ACCENT_SOFT}; }}
 
 /* In-place row editors: an edited record is still a record. No field carries a line at
    rest and none carries one on hover — a field that is not focused looks exactly like the
@@ -146,16 +139,17 @@ QDateTimeEdit#rowEdit {{ color: {TEXT_2}; }}
 QComboBox QAbstractItemView {{ background: {SURFACE}; border: 1px solid {HAIRLINE}; padding: 4px;
     selection-background-color: {HOVER}; selection-color: {TEXT}; outline: 0; }}
 
-/* Popover */
+/* Popover: the layer is the object. The time inside it is written, not boxed — the same
+   quiet field as the time of a record being edited, with its own focus line. */
 QFrame#popover {{ background: {SURFACE}; border: 1px solid {HAIRLINE}; border-radius: 10px; }}
 QFrame#popover QDateTimeEdit {{
-    background: transparent; border: 1px solid {HAIRLINE}; border-radius: 6px; padding: 4px 8px;
-    font-size: 15px; selection-background-color: {ACCENT_SOFT}; selection-color: {TEXT}; }}
-QFrame#popover QDateTimeEdit:focus {{ border-color: {ACCENT_SOFT}; }}
+    background: transparent; border: none; padding: 0px; color: {TEXT};
+    selection-background-color: {ACCENT_SOFT}; selection-color: {TEXT}; }}
 QPushButton#quiet {{ background: transparent; border: 1px solid transparent; border-radius: 6px;
     padding: 3px 10px; color: {TEXT_2}; }}
 QPushButton#quiet:hover {{ background: {HOVER}; }}
-QPushButton#quiet:focus {{ border-color: {ACCENT_SOFT}; }}
+QPushButton#quiet:pressed {{ background: {PRESSED}; }}
+QPushButton#quiet:focus {{ border-color: {FOCUS_RING}; }}
 
 /* Toast */
 QFrame#toast {{ background: {SURFACE}; border: 1px solid {HAIRLINE}; border-radius: 10px; }}
@@ -164,14 +158,10 @@ QFrame#toast QLabel#toastDanger {{ color: {DANGER}; }}
 QPushButton#undo {{ background: transparent; border: 1px solid transparent; border-radius: 6px;
     padding: 3px 10px; color: {ACCENT}; font-size: 14px; font-weight: 500; }}
 QPushButton#undo:hover {{ background: {HOVER}; }}
-QPushButton#undo:focus {{ border-color: {ACCENT_SOFT}; }}
+QPushButton#undo:pressed {{ background: {PRESSED}; }}
+QPushButton#undo:focus {{ border-color: {FOCUS_RING}; }}
 
-/* Utility */
-QToolButton#utility {{ background: transparent; border: 1px solid transparent; border-radius: 6px;
-    color: {TEXT_3}; font-size: 20px; padding: 0px 6px; }}
-QToolButton#utility:hover {{ background: {HOVER}; color: {TEXT_2}; }}
-QToolButton#utility:focus {{ border-color: {ACCENT_SOFT}; }}
-QToolButton#utility::menu-indicator {{ image: none; width: 0px; }}
+/* Utility (⋮ paints itself; its menu opens under it, right-aligned, inside the window) */
 QMenu {{ background: {SURFACE}; border: 1px solid {HAIRLINE}; border-radius: 8px; padding: 6px; }}
 QMenu::item {{ padding: 6px 20px; border-radius: 4px; }}
 QMenu::item:selected {{ background: {HOVER}; }}

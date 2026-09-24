@@ -4,11 +4,11 @@ Summary and history are one thought, not two tabs. Structure comes from
 spacing, alignment and day headings; there are no cards, no per-row lines.
 """
 from datetime import datetime
-from PySide6.QtCore import Qt, QObject, Signal, QRectF, QEvent, QTimer, QPointF
+from PySide6.QtCore import Qt, QObject, Signal, QRectF, QEvent, QTimer
 from PySide6.QtGui import QPainter, QColor, QPen, QShortcut, QKeySequence, QFontMetrics
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QToolButton, QScrollArea, QFrame, QApplication,
-    QSizePolicy, QLineEdit, QStackedWidget, QSpacerItem,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QFrame, QApplication,
+    QSizePolicy, QLineEdit, QStackedWidget,
 )
 from database import DatabaseError
 from domain import (
@@ -17,6 +17,8 @@ from domain import (
 )
 from ui import motion, theme
 from ui.capture_page import CurrencyMark, CURRENCY_OPTICAL
+from ui.controls import ChevronButton, SearchButton, CloseButton, ICON_BUTTON
+from ui.spaces import FOOTER_HEIGHT
 from ui.record_row import (  # noqa: F401  (RecordRow, DayHeading, ROW_GAP re-exported for tests)
     RecordRow, DayHeading, ROW_GAP, EDGE_ROOM, VALUE_TAIL,
 )
@@ -34,25 +36,34 @@ MEASURE = 400             # text edge to value edge; the same width as Capture's
 # values, so the list starts that much further in than the column does.
 COLUMN_WIDTH = MEASURE + 2 * VALUE_TAIL
 HISTORY_LEAD = EDGE_ROOM
-GUTTER = 10               # always reserved for the scroll bar, so the axis never shifts
+# The scroll bar's room. It is reserved on both sides of the column, so the page is centred
+# on the window's own centre line — the one Capture, the page dots and the toast use — and
+# the bar, when it appears, takes the room on its side without moving anything.
+GUTTER = 10
 BODY_SIDE = 24            # minimum breathing room beside the axis
-HEADER_SIDE = 56
+PAGE_SIDE = BODY_SIDE + GUTTER
 HEADER_HEIGHT, HEADER_TOP, HEADER_BOTTOM = 76, 26, 4
 # The one line the header's controls are centred on: the month, the search glyph — and the
 # window's ⋮, which sits on it too rather than a little above, as a near miss.
 HEADER_LINE = HEADER_TOP + (HEADER_HEIGHT - HEADER_TOP - HEADER_BOTTOM) // 2
-SEARCH_SLOT = 32          # the search glyph's room, mirrored on the left so the month is centred
-# The search field is set on the grid: what is typed starts on the text edge, directly above
-# the descriptions it finds. Its text sits 1 (border) + 12 (padding) + 2 (Qt's margin) in.
+# The header is laid on the column's grid, not on the window's edges. Search belongs to the
+# page, so its glyph ends on the value edge; the ⋮ belongs to the window and keeps the corner.
+SEARCH_GLYPH_CENTRE = 8   # from the value edge: the magnifier's ink is 16 px wide
+SEARCH_GLYPH_TAIL = VALUE_TAIL + SEARCH_GLYPH_CENTRE - ICON_BUTTON // 2   # its box to the column's edge
+# The search field is set on the grid too: what is typed starts on the text edge, directly
+# above the descriptions it finds (its text sits 1 border + 12 padding + 2 Qt margin in),
+# and × sits inside it, exactly where the magnifier was — the way in becomes the way out.
 SEARCH_TEXT_INSET = 15
 SEARCH_WIDTH = MEASURE + 2 * SEARCH_TEXT_INSET
 SEARCH_MIN_WIDTH = 280    # a narrow window gives up the alignment before the field
+SEARCH_CLOSE = 24         # an accessory inside the field, so smaller than a free-standing button
+SEARCH_CLOSE_CENTRE = SEARCH_TEXT_INSET + SEARCH_GLYPH_CENTRE   # from the field's right edge
+LIST_END = 48             # air after the last day, above the footer band
 DONUT_SIZE = 98
 RING_WIDTH = 7
 STRUCTURE_GAP = 52        # the ring is a separate object; it needs its own air
 DOT_LEAD = 16             # a category's dot and its gap hang in the margin, before the text edge
 CATEGORY_WIDTH = MEASURE - STRUCTURE_GAP - DONUT_SIZE  # names to amounts
-MONTH_ARROW_WIDTH = 26
 TOTAL_CURRENCY_PX = 26
 TOTAL_TO_STRUCTURE = 32
 SUMMARY_TO_HISTORY = 72   # the overview closes, the records open
@@ -351,74 +362,45 @@ class HistoryList(QWidget):
         return next((row for row in self.live_rows() if row.record["id"] == record_id), None)
 
 
-class MonthArrow(QToolButton):
-    """One half of the month's navigation, painted rather than set in type.
-
-    A ‹ from the text font is four pixels of ink at this size and reads as a speck, so
-    the arrow is drawn: a chevron with the weight of a hairline, on the month's own
-    optical centre, close enough to the words to belong to them. It stays quiet — this
-    is how the month moves, not something to look at.
-    """
-    ARM = 3.4
-    REACH = 5.2
-
-    def __init__(self, direction, parent=None):
-        super().__init__(parent)
-        self.setObjectName("monthArrow")
-        self.direction = direction
-        self.setFixedSize(MONTH_ARROW_WIDTH, 30)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-
-    def ink_inset(self):
-        """How far the chevron's ink stays from the edge that faces the month."""
-        return (self.width() - 2 * self.ARM) / 2.0
-
-    def paintEvent(self, event):
-        super().paintEvent(event)
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        if not self.isEnabled():
-            color = QColor(theme.DISABLED_ARROW)
-        elif self.underMouse() or self.hasFocus():
-            color = QColor(theme.TEXT)
-        else:
-            color = QColor(theme.TEXT_2)
-        pen = QPen(color)
-        pen.setWidthF(1.5)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-        painter.setPen(pen)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        cx, cy = self.width() / 2.0, self.height() / 2.0
-        tip = cx + self.ARM * self.direction      # the point leads the way the month moves
-        back = cx - self.ARM * self.direction
-        painter.drawLine(QPointF(back, cy - self.REACH), QPointF(tip, cy))
-        painter.drawLine(QPointF(tip, cy), QPointF(back, cy + self.REACH))
-
-
-class SearchGlyph(QToolButton):
-    """A small painted magnifier — one of the few icons the system allows."""
+class EdgeLine(QWidget):
+    """A hairline across the window at the edge of the scrolling list, shown only while records
+    continue past that edge. It is a state — "there is more this way" — not a divider: at the
+    top of a month, or with a month that fits, there is no line at all."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setObjectName("searchGlyph")
-        self.setFixedSize(32, 32)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setAccessibleName("搜索记录")
-        self.setToolTip("搜索记录")
+        self.setFixedHeight(1)
+        self._shown = motion.Blend(self, motion.HOVER, self.update)
+
+    def set_shown(self, shown):
+        if (self._shown.value() > 0.5) != shown or self._shown.state() == self._shown.State.Running:
+            self._shown.set(shown)
+
+    def shown(self):
+        return self._shown.value() > 0.5
 
     def paintEvent(self, event):
-        super().paintEvent(event)
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        pen = QPen(QColor(theme.TEXT_2 if self.underMouse() or self.hasFocus() else theme.TEXT_3))
-        pen.setWidthF(1.6)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(pen)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        cx, cy = self.width() / 2 - 1.5, self.height() / 2 - 1.5
-        painter.drawEllipse(QPointF(cx, cy), 5.5, 5.5)
-        painter.drawLine(QPointF(cx + 4.2, cy + 4.2), QPointF(cx + 8.5, cy + 8.5))
+        weight = self._shown.value()
+        if weight <= 0.001:
+            return
+        color = QColor(theme.HAIRLINE)
+        color.setAlphaF(weight)
+        QPainter(self).fillRect(self.rect(), color)
+
+
+class SearchField(QLineEdit):
+    """The search field with its way out inside it: × sits at the field's right end, where
+    the magnifier stood before Search opened. Typed text never runs underneath it."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.close_button = CloseButton("退出搜索", self, size=SEARCH_CLOSE)
+        self.setTextMargins(0, 0, SEARCH_CLOSE_CENTRE + SEARCH_CLOSE // 2 - SEARCH_TEXT_INSET + 4, 0)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.close_button.move(self.width() - SEARCH_CLOSE_CENTRE - SEARCH_CLOSE // 2,
+                               (self.height() - SEARCH_CLOSE) // 2)
 
 
 class ReviewPage(QWidget):
@@ -439,44 +421,55 @@ class ReviewPage(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        # Header: the month is the context of everything below it; Search temporarily takes its place.
+        # Header: the month is the context of everything below it; Search temporarily takes its
+        # place. It is laid out on the same centred column as the body, so the month, the search
+        # glyph and the field all stand on the page's grid rather than on the window's edges.
         self.searching = False
         self._saved_scroll = 0
         self.header = QWidget()
         self.header.setObjectName("space")
         self.header.setFixedHeight(HEADER_HEIGHT)
         header_layout = QHBoxLayout(self.header)
-        # + GUTTER on the right so the month sits on the same centre line as the body below it.
-        header_layout.setContentsMargins(HEADER_SIDE, HEADER_TOP, HEADER_SIDE + GUTTER, HEADER_BOTTOM)
+        header_layout.setContentsMargins(PAGE_SIDE, HEADER_TOP, PAGE_SIDE, HEADER_BOTTOM)
         header_layout.setSpacing(0)
-        header_layout.addSpacing(SEARCH_SLOT)  # balances the search glyph on the right
         self.header_stack = QStackedWidget()
+        self.header_stack.setMaximumWidth(COLUMN_WIDTH)
         self.header_stack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        header_layout.addStretch(1)
+        header_layout.addWidget(self.header_stack, 100)  # the body's column, in the header
+        header_layout.addStretch(1)
         month_row = QWidget()
         month_row.setObjectName("space")
         header = QHBoxLayout(month_row)
         header.setContentsMargins(0, 0, 0, 0)
         header.setSpacing(0)  # the distance to the month is the chevron's, not the layout's
+        header.addSpacing(ICON_BUTTON + SEARCH_GLYPH_TAIL)  # mirrors the search glyph: the month stays centred
         header.addStretch()
-        self.previous = MonthArrow(-1)
-        self.previous.setAccessibleName("上一个月")
-        self.previous.setToolTip("上一个月")
+        self.previous = ChevronButton(-1, "上一个月")
         self.previous.clicked.connect(lambda: self.change_month(-1))
-        header.addWidget(self.previous)
+        header.addWidget(self.previous, 0, Qt.AlignmentFlag.AlignVCenter)
         self.month_label = QPushButton()
         self.month_label.setObjectName("monthLabel")
         self.month_label.setFont(theme.font(22, theme.MEDIUM))
+        self.month_label.setFixedHeight(ICON_BUTTON)  # one height for the whole navigation
+        self.month_label.setFocusPolicy(Qt.FocusPolicy.TabFocus)  # a click never leaves a frame
         self.month_label.setCursor(Qt.CursorShape.PointingHandCursor)
         self.month_label.setToolTip("回到本月")
         self.month_label.setAccessibleName("当前月份")
         self.month_label.clicked.connect(self.show_current_month)
-        header.addWidget(self.month_label)
-        self.next = MonthArrow(1)
-        self.next.setAccessibleName("下一个月")
-        self.next.setToolTip("下一个月")
+        header.addWidget(self.month_label, 0, Qt.AlignmentFlag.AlignVCenter)
+        self.next = ChevronButton(1, "下一个月")
         self.next.clicked.connect(lambda: self.change_month(1))
-        header.addWidget(self.next)
+        header.addWidget(self.next, 0, Qt.AlignmentFlag.AlignVCenter)
         header.addStretch()
+        self.search_button = SearchButton("搜索记录")
+        self.search_button.clicked.connect(self.enter_search)
+        # Its room is kept while it is hidden, so entering Search moves nothing.
+        policy = self.search_button.sizePolicy()
+        policy.setRetainSizeWhenHidden(True)
+        self.search_button.setSizePolicy(policy)
+        header.addWidget(self.search_button, 0, Qt.AlignmentFlag.AlignVCenter)
+        header.addSpacing(SEARCH_GLYPH_TAIL)
         self.header_stack.addWidget(month_row)
         search_row = QWidget()
         search_row.setObjectName("space")
@@ -484,12 +477,7 @@ class ReviewPage(QWidget):
         search_layout.setContentsMargins(0, 0, 0, 0)
         search_layout.setSpacing(0)
         search_layout.addStretch(1)
-        # Mirrors × and its gap, measured rather than assumed, so the search field keeps
-        # exactly the centre line the month label had.
-        self._search_mirror = QSpacerItem(SEARCH_SLOT + 4, 0, QSizePolicy.Policy.Fixed,
-                                          QSizePolicy.Policy.Minimum)
-        search_layout.addSpacerItem(self._search_mirror)
-        self.search_field = QLineEdit()
+        self.search_field = SearchField()
         self.search_field.setObjectName("search")
         self.search_field.setPlaceholderText("搜索记录…")
         self.search_field.setClearButtonEnabled(False)
@@ -499,27 +487,10 @@ class ReviewPage(QWidget):
         self.search_field.setAccessibleName("搜索记录")
         self.search_field.textChanged.connect(lambda _: self._search_timer.start())
         search_layout.addWidget(self.search_field, 100)  # takes all it may; the stretches share the rest
-        search_layout.addSpacing(4)
-        self.search_close = QToolButton()
-        self.search_close.setObjectName("searchClose")
-        self.search_close.setText("×")
-        self.search_close.setAccessibleName("退出搜索")
-        self.search_close.setToolTip("退出搜索")
-        self.search_close.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.search_close.setFixedSize(32, 30)  # mirrored by _search_mirror, so Search keeps the centre line
-        self.search_close.clicked.connect(self.exit_search)
-        search_layout.addWidget(self.search_close)
         search_layout.addStretch(1)
-        self._search_layout = search_layout
+        self.search_close = self.search_field.close_button
+        self.search_close.clicked.connect(self.exit_search)
         self.header_stack.addWidget(search_row)
-        header_layout.addWidget(self.header_stack, 1)
-        self.search_button = SearchGlyph()
-        self.search_button.clicked.connect(self.enter_search)
-        # Its room is kept while it is hidden, so entering Search moves nothing.
-        policy = self.search_button.sizePolicy()
-        policy.setRetainSizeWhenHidden(True)
-        self.search_button.setSizePolicy(policy)
-        header_layout.addWidget(self.search_button, 0, Qt.AlignmentFlag.AlignVCenter)
         outer.addWidget(self.header)
         self._search_timer = QTimer(self)
         self._search_timer.setSingleShot(True)
@@ -540,7 +511,7 @@ class ReviewPage(QWidget):
         self.body_layout = body_layout = QVBoxLayout(body)
         # The month and the total are one statement, so the gap between them is the
         # smallest of the three the page reads down through.
-        body_layout.setContentsMargins(BODY_SIDE, 8, BODY_SIDE + GUTTER, 76)
+        body_layout.setContentsMargins(PAGE_SIDE, 8, PAGE_SIDE, LIST_END)
         body_layout.setSpacing(0)
         self.column = QWidget()
         self.column.setObjectName("scrollBody")
@@ -585,21 +556,37 @@ class ReviewPage(QWidget):
         centred.addStretch(1)
         body_layout.addLayout(centred)
         self.scroll.setWidget(body)
+        # The list scrolls between two bands: the header above, and the footer band where the
+        # page dots live below, so no record ever passes under the dots. Each edge shows a
+        # hairline only while records continue past it.
+        self.top_edge = EdgeLine()
+        self.bottom_edge = EdgeLine()
+        outer.addWidget(self.top_edge)
         outer.addWidget(self.scroll, 1)
+        outer.addWidget(self.bottom_edge)
+        outer.addSpacing(FOOTER_HEIGHT - 1)
+        bar = self.scroll.verticalScrollBar()
         # The scroll bar's room is reserved on both sides of its appearance, so the
         # reading axis sits at the same x whether a month scrolls or not.
-        self.scroll.verticalScrollBar().rangeChanged.connect(lambda *_: self._sync_axis())
+        bar.rangeChanged.connect(lambda *_: self._sync_axis())
+        bar.rangeChanged.connect(lambda *_: self._sync_edges())
+        bar.valueChanged.connect(lambda _: self._sync_edges())
         self.refresh()
 
     # ---- the axis ------------------------------------------------------------
     def _sync_axis(self):
-        """Give back the gutter exactly when the scroll bar takes it."""
+        """Give back the gutter on the bar's side exactly when the scroll bar takes it."""
         bar = self.scroll.verticalScrollBar()
         reserved = 0 if bar.maximum() > bar.minimum() else GUTTER
         margins = self.body_layout.contentsMargins()
         if margins.right() != BODY_SIDE + reserved:
-            self.body_layout.setContentsMargins(BODY_SIDE, margins.top(),
+            self.body_layout.setContentsMargins(PAGE_SIDE, margins.top(),
                                                 BODY_SIDE + reserved, margins.bottom())
+
+    def _sync_edges(self):
+        bar = self.scroll.verticalScrollBar()
+        self.top_edge.set_shown(bar.value() > bar.minimum())
+        self.bottom_edge.set_shown(bar.value() < bar.maximum())
 
     # ---- month ---------------------------------------------------------------
     def at_current_month(self):
@@ -707,17 +694,8 @@ class ReviewPage(QWidget):
         """The month area turns into the search area in place: same header, same height,
         same centre line. Review changes state; it does not open a page."""
         self.header_stack.setCurrentIndex(index)
-        self._balance_search_row()
         motion.fade_in(self.header_stack, 0.0, motion.SEARCH)
         motion.fade_in(self.scroll.viewport(), 0.55, motion.SEARCH)
-
-    def _balance_search_row(self):
-        # The width × actually gets (it is fixed), not its size hint: the hint depends on the
-        # font and can exceed the fixed box, which would push the field off the centre line.
-        width = self.search_close.width() + 4
-        if self._search_mirror.sizeHint().width() != width:
-            self._search_mirror.changeSize(width, 0, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum)
-            self._search_layout.invalidate()
 
     def _run_search(self, *, keep_scroll=False):
         if not self.searching:

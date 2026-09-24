@@ -17,6 +17,7 @@ from database import DatabaseError
 from domain import parse_amount, format_amount, cents_to_input, describe_time, MAX_DESCRIPTION
 from draft import Draft
 from ui import motion, theme
+from ui.controls import QuietDateTimeEdit, DATE_TEXT_NUDGE
 
 AMOUNT_PATTERN = QRegularExpression(r"[0-9]{0,9}(\.[0-9]{0,2})?")
 COLUMN_WIDTH = 400          # the window may grow; the content column does not
@@ -35,6 +36,9 @@ CURRENCY_OPTICAL = 2
 RECORD_WIDTH, RECORD_HEIGHT = 96, 34
 RECORD_RADIUS = 5
 RECORD_TEXT_LIFT = 1     # CJK has no descender: centring the line box sets the word a touch low
+# The time layer speaks the app's date language (the same words as the time it edits) and is
+# one object: the layer is the frame, the date inside it is written, not boxed again.
+POPOVER_FORMAT = "yyyy年M月d日 HH:mm"
 # One record is one movement: amount, then (what + when), then the action. The gaps say so:
 # the break after the amount is the largest, what and when are a pair, the action stands apart.
 ERROR_SLOT = 20          # always reserved, so an error never moves the column
@@ -273,7 +277,11 @@ class RecordButton(QPushButton):
 
 
 class TimePopover(QFrame):
-    """Light editing layer for the record time; closes on Esc or a click outside."""
+    """Light editing layer for the record time; closes on Esc or a click outside.
+
+    The date inside is the same quiet field a record's time becomes in Edit — no second
+    box inside the layer's own edge — and it is written as the rest of Cashing writes a
+    date. The hour is selected when it opens: the part most often corrected."""
     changed = Signal(datetime)
     reset = Signal()
 
@@ -282,10 +290,12 @@ class TimePopover(QFrame):
         self.setObjectName("popover")
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(8)
-        self.edit = QDateTimeEdit()
-        self.edit.setDisplayFormat("yyyy-MM-dd HH:mm")
+        layout.setContentsMargins(16, 8, 8, 8)
+        layout.setSpacing(12)
+        self.edit = QuietDateTimeEdit()
+        self.edit.setFont(theme.font(15, tabular=True))
+        self.edit.lineEdit().setTextMargins(DATE_TEXT_NUDGE, 0, 0, 0)
+        self.edit.setDisplayFormat(POPOVER_FORMAT)
         self.edit.setDateRange(QDate(1900, 1, 1), QDate(9999, 12, 31))
         self.edit.setButtonSymbols(QDateTimeEdit.ButtonSymbols.NoButtons)
         self.edit.setCalendarPopup(False)
@@ -294,6 +304,7 @@ class TimePopover(QFrame):
         layout.addWidget(self.edit)
         self.now_button = QPushButton("现在")
         self.now_button.setObjectName("quiet")
+        self.now_button.setFocusPolicy(Qt.FocusPolicy.TabFocus)
         self.now_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.now_button.clicked.connect(self._reset)
         layout.addWidget(self.now_button)
@@ -397,6 +408,9 @@ class CapturePage(QWidget):
         # Time -----------------------------------------------------------
         self.time_button = QPushButton()
         self.time_button.setObjectName("time")
+        # Keyboard focus only: after the layer closes, typing continues where it was, and no
+        # frame is left around the time.
+        self.time_button.setFocusPolicy(Qt.FocusPolicy.TabFocus)
         self.time_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.time_button.setAccessibleName("消费时间")
         self.time_button.setToolTip("点击修改时间")
@@ -406,6 +420,7 @@ class CapturePage(QWidget):
 
         # Action ---------------------------------------------------------
         self.record_button = RecordButton("记录")
+        self.record_button.setFocusPolicy(Qt.FocusPolicy.TabFocus)  # a failed click leaves the input focused
         self.record_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.record_button.setFixedSize(RECORD_WIDTH, RECORD_HEIGHT)
         self.record_button.setFont(theme.font(15))

@@ -231,3 +231,30 @@ def test_no_brand_or_navigation_text_inside_the_capture_space(window):
     texts = {label.text() for label in window.capture.findChildren(type(window.capture.amount_error))}
     assert not any(t for t in texts if "Cashing" in t or "记账" in t or "Capture" in t)
     assert window.windowTitle() == "Cashing"
+
+
+def test_time_layer_speaks_the_app_date_language_and_returns_focus(window, qtbot):
+    capture = window.capture
+    capture.amount.setFocus()
+    qtbot.mouseClick(capture.time_button, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(capture.popover.isVisible, timeout=1000)
+    capture.popover.edit.setDateTime(datetime(2026, 9, 19, 22, 15))
+    assert capture.popover.edit.text() == "2026年9月19日 22:15"
+    capture.popover.close()
+    qtbot.wait(20)
+    assert not capture.time_button.hasFocus()  # no frame left around the time
+    assert capture.time_button.focusPolicy() == Qt.FocusPolicy.TabFocus
+
+
+def test_the_toast_leaves_the_way_it_came_in(window, qtbot):
+    from ui import motion
+    capture = window.capture
+    capture.amount.setText("1")
+    capture.record()
+    toast = window.toast
+    assert toast.can_undo()
+    toast.dismiss()
+    assert not toast.can_undo()  # the offer ends at once
+    if motion.ENABLED:
+        assert toast.isVisible()  # the surface fades out rather than blinking away
+    qtbot.waitUntil(lambda: not toast.isVisible(), timeout=2000)

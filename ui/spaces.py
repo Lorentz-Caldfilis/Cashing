@@ -13,6 +13,10 @@ from ui import motion, theme
 
 SLIDE_MS = motion.SPACE
 EDGE_WIDTH = 28
+# The window's bottom band: where the page dots live, in both spaces. Content never scrolls
+# into it, so the dots are never drawn over a record; the dots sit on its middle line.
+FOOTER_HEIGHT = 64
+DOTS_HEIGHT = 24
 WHEEL_THRESHOLD = 150   # accumulated angleDelta().x() units (one notch = 120)
 WHEEL_COOLDOWN_S = 0.5
 WHEEL_GESTURE_GAP_S = 0.3
@@ -106,7 +110,7 @@ class PageDots(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
-        self.setFixedSize(count * 24, 24)
+        self.setFixedSize(count * 24, DOTS_HEIGHT)
         self.setAccessibleName("页面位置")
 
     def set_index(self, index):

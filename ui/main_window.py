@@ -1,19 +1,36 @@
 """Cashing main window: two full-window spaces, Capture ⇄ Review, and window-level overlays."""
 from pathlib import Path
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import QPoint, QUrl
 from PySide6.QtGui import QShortcut, QKeySequence, QDesktopServices
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QToolButton, QMenu, QMessageBox
 from draft import DraftStore
 from ledger import Ledger
 from ui import theme
 from ui.capture_page import CapturePage
+from ui.controls import MoreButton
 from ui.review_page import ReviewPage, HEADER_LINE
-from ui.spaces import SpaceSwitcher, PageDots, EdgeZone, WheelNavigator, EDGE_WIDTH
+from ui.spaces import (
+    SpaceSwitcher, PageDots, EdgeZone, WheelNavigator, EDGE_WIDTH, FOOTER_HEIGHT, DOTS_HEIGHT,
+)
 from ui.toast import Toast
 
 CAPTURE, REVIEW = 0, 1
-DOTS_BOTTOM = 22          # the dots themselves then sit ~30 px above the window edge
+MENU_GAP = 4
+DOTS_BOTTOM = (FOOTER_HEIGHT - DOTS_HEIGHT) // 2   # the dots on the footer band's middle line
 WINDOW_WIDTH, WINDOW_HEIGHT = 1000, 760
+
+
+class AnchoredMenu(QMenu):
+    """The ⋮ menu hangs from its button: right edges aligned, just below it, so it opens
+    inside the window instead of spilling past the window's edge onto the desktop."""
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        anchor = self.parentWidget()
+        if anchor is None:
+            return
+        corner = anchor.mapToGlobal(QPoint(anchor.width(), anchor.height() + MENU_GAP))
+        self.move(corner.x() - self.width(), corner.y())
 
 
 class MainWindow(QMainWindow):
@@ -48,15 +65,11 @@ class MainWindow(QMainWindow):
         self.right_edge = EdgeZone(+1, central)
         self.right_edge.activated.connect(lambda: self.switch_to(REVIEW))
         self.toast = Toast(central)
-        self.utility = QToolButton(central)
+        self.utility = MoreButton("更多", central)
         self.utility.setObjectName("utility")
-        self.utility.setText("⋮")
-        self.utility.setAccessibleName("更多")
-        self.utility.setToolTip("更多")
-        self.utility.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.utility.setText("⋮")  # named for assistive technology; the glyph itself is painted
         self.utility.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
-        self.utility.setFixedSize(32, 32)
-        self.utility_menu = QMenu(self.utility)
+        self.utility_menu = AnchoredMenu(self.utility)
         self.open_data_action = self.utility_menu.addAction("打开数据目录")
         self.open_data_action.triggered.connect(self.open_data_directory)
         self.utility_menu.addSeparator()
