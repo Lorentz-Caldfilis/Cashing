@@ -38,4 +38,4 @@ def test_draft_never_enters_the_ledger(database, tmp_path):
     view = ledger.month(2026, 9)
     assert view.is_empty and view.totals["total"] == 0
     assert ledger.search("晚饭") == []
-    assert database.latest_category_for("晚饭") is None
+    assert database.user_labels() == []

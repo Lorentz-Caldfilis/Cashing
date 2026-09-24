@@ -26,7 +26,8 @@ All seven milestones complete on `ui-v2-pc-light`. Not merged into `main`; no re
 ui/  (Qt)            main_window → spaces (SpaceSwitcher/PageDots/EdgeZone/WheelNavigator)
                      capture_page, review_page, record_row, toast, theme
 ledger.py (core)     create / undo_create / month / search / update / delete / restore  — no Qt
-classification.py    derive_category(description, lookup): identical description → latest category, else None
+classification.py    Classifier: the person's phrase votes → longest match of their phrases + lexicon.py → None
+                     (derived on every read by Ledger; never stored — see docs/development/CLASSIFICATION.md)
 draft.py             Draft + DraftStore (draft.json beside the ledger; never in the DB)
 domain.py            categories (生活/工具/娱乐 or None), money (integer cents), formatting, grouping, time text
 database.py          all SQL; schema v2; v1→v2 migration with backup; strict validation of stored rows
@@ -38,8 +39,8 @@ Rule kept from v1: the UI never writes SQL; everything goes through `Ledger`.
 ## Key decisions and gotchas (read before changing code)
 
 - **Category is a derived interpretation.** `records.category` is nullable in v2; `None` = 尚未分类, shown only as one very weak sentence under the three categories ("另有 ¥X 尚未分类", no dot, no colour, nothing to click) when non-zero, plus a neutral light-grey arc in the ring whenever a ring is drawn at all. The total always includes it. Never a task, badge or fourth category.
-- **v1 `饮食` → v2 `生活`.** The migration renames the first bucket (1:1, reversible via the backup). Migration = validate → SQLite `backup()` to `ledger.sqlite3.before-v2.bak` → `BEGIN IMMEDIATE` table rebuild → verify → commit; failures roll back leaving the v1 file byte-identical. Ids and `sqlite_sequence` are preserved.
-- **Classification is deliberately minimal** (Philosophy §4.5 layer 1 only). New records get the latest category the user gave an identical description (case-insensitive ASCII, trimmed); otherwise `None`. Replace `classification.py` when the Adaptive Classification spec is frozen.
+- **v1 `饮食` → `生活`; v1/v2 → v3.** The migration renames the first bucket (1:1, reversible via the backup) and marks every stored category as the person's (`category_by_user = 1`). Migration = validate → SQLite `backup()` to `ledger.sqlite3.before-v3.bak` → `BEGIN IMMEDIATE` table rebuild → verify → commit; failures roll back leaving the v1 file byte-identical. Ids and `sqlite_sequence` are preserved.
+- **Only the person's categories are stored** (schema v3). `Ledger` derives the rest on read, so never pass a record from the UI back into `Database` as if its `category` were stored: `Ledger.delete` hands back the stored row, `Ledger.update` rereads it. Direct `Database` writes (tests, smoke) are fine: `month()` / `search()` rebuild the classifier from the stored labels.
 - **QSS must not set `font-size`/`font-family` on `QWidget`**: stylesheet fonts override `setFont` and flatten the type scale. Base font is set programmatically (`theme.BASE_PX`), sizes via `theme.font(px, weight, tabular)`.
 - **Centre columns with stretch factors, not alignment flags**: an aligned layout item only gets its size hint; the Review list jumped 372→514 px when editors were built until this was fixed (M5).
 - **`HistoryList.clear()` hides + unparents before `deleteLater`** so a month switch never shows old and new rows together.
@@ -174,6 +175,29 @@ hanging outside the window), and a toast that blinked out. No information, struc
 189 tests (+7: shared axis / footer band, scroll edges, × in the magnifier's place, anchored menu, no focus
 after clicks, time-layer format and focus return, toast fade-out), `-W error`, no-motion run, smoke ×2
 (43 / 46, empty stderr). Rest = Edit ink still exact at 1.5×.
+
+## Follow-up round: adaptive classification (schema v3)
+
+Replaces the exact-description-only `classification.py`. Design, alternatives and numbers:
+`docs/development/CLASSIFICATION.md`; benchmark: `scripts/classification_benchmark.py`.
+
+- **Store facts, derive interpretations, literally.** Schema v3 adds `category_by_user`; `category` holds
+  only what the person stated (`NULL, 1` = they chose 暂未判断). The software's judgement is never
+  written: `Ledger.month()` / `search()` rebuild the classifier from the stored labels (~20 ms per 10k
+  labels incl. the query) and derive each record's `category` on read. v1/v2 categories migrate as the
+  person's; backup is now `ledger.sqlite3.before-v3.bak`. The version gate accepts 0/1/2/3.
+- **Algorithm** (stdlib only): the person's phrase (recency-weighted votes + built-in prior 0.8, winner
+  must be 2× the runner-up, else the built-in opinion stands) → longest match of the person's phrases and
+  `lexicon.py` words (ambiguous words block built-in evidence; all must agree) → undecided.
+  One exception does not reinterpret a whole phrase; two consistent corrections do.
+- **UI**: one hook — `HistoryList.reinterpret()` re-reads other visible rows in place after a category or
+  description change (`ReviewPage._row_changed`); nothing else in `ui/` changed.
+- Benchmark (new user, month 6): 99.2–99.4 % precision at 82–83 % coverage; from v1 99.4–99.6 % at
+  85–88 %; the old behaviour covered ~30 %. Embedding / local LLM not adopted (no local model; bounded
+  gain ≤ ~10 % coverage vs. +100 MB and numpy) — reasoning in the doc.
+
+236 tests (`-W error`), pyflakes clean on touched files, smoke ×2 (43 / 46, empty stderr). Frozen build
+not rebuilt this round (`lexicon.py` is a plain import; PyInstaller picks it up).
 
 ## Needs human visual acceptance
 

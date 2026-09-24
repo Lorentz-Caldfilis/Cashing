@@ -143,17 +143,34 @@ def test_click_outside_or_another_row_moves_the_edit(page, qtbot):
 
 def test_category_changes_at_once_including_back_to_unknown(page, qtbot, database):
     row = page.rows()[2]
-    assert row.category_name.text() == ""
+    assert row.category_name.text() == "娱乐"  # derived, not stored
+    assert database.get_record(row.record["id"])["category"] is None
     click(qtbot, row, "category")
-    row.category_box.setCurrentText("娱乐")
-    assert database.get_record(row.record["id"])["category"] == "娱乐"
-    assert page.summary.lines["娱乐"].amount.text() == "¥36.00"
+    row.category_box.setCurrentText("生活")
+    assert database.get_record(row.record["id"])["category"] == "生活"
+    assert page.summary.lines["生活"].amount.text() == "¥64.50"
     assert page.summary.unknown_note.text() == ""
     row.category_box.setCurrentText("暂未判断")
-    assert database.get_record(row.record["id"])["category"] is None
+    stored = database.get_record(row.record["id"])
+    assert (stored["category"], stored["category_by_user"]) == (None, 1)  # the person's choice, kept
     assert page.summary.unknown_note.text() == "另有 ¥36.00 尚未分类"
     qtbot.keyClick(row.category_box, Qt.Key.Key_Return)
     assert not row.editing and row.category_name.text() == "" and row.category_dot.isHidden()
+    page.refresh()
+    assert page.rows()[2].category_name.text() == ""  # not re-derived as 娱乐
+
+
+def test_a_correction_rereads_the_other_rows_in_place(page, qtbot, database):
+    database.add_record(1500, datetime(2026, 9, 18, 12, 0), None, "蜜雪冰城")
+    database.add_record(1600, datetime(2026, 9, 17, 12, 0), None, "蜜雪冰城")
+    page.refresh()
+    first, second = page.rows()[3], page.rows()[4]
+    assert first.category_name.text() == second.category_name.text() == ""
+    click(qtbot, first, "category")
+    first.category_box.setCurrentText("娱乐")
+    assert second.category_name.text() == "娱乐" and not second.category_dot.isHidden()
+    assert page.summary.lines["娱乐"].amount.text() == "¥67.00"
+    assert second in page.rows()  # updated in place, not rebuilt
 
 
 def test_edit_time_across_month_moves_the_record(page, qtbot, database):

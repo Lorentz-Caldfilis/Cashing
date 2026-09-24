@@ -161,12 +161,13 @@ def test_locked_database_rollback(database):
 def test_database_constraints(database):
     con = sqlite3.connect(database.path)
     try:
-        for amount,category in [(0,"生活"),(-1,"生活"),(1.5,"生活"),(100,"其他"),(100,"饮食")]:
+        for amount,category,by_user in [(0,"生活",1),(-1,"生活",1),(1.5,"生活",1),(100,"其他",1),(100,"饮食",1),
+                                        (100,"生活",0),(100,None,2)]:
             with pytest.raises(sqlite3.IntegrityError):
-                con.execute("INSERT INTO records VALUES(NULL,?, '2026-09-01 00:00', ?, '', '', '')",
-                            (amount,category))
+                con.execute("INSERT INTO records VALUES(NULL,?, '2026-09-01 00:00', ?, '', '', '', ?)",
+                            (amount,category,by_user))
         with con:
-            con.execute("INSERT INTO records VALUES(NULL,100, '2026-09-01 00:00', NULL, '', '', '')")
+            con.execute("INSERT INTO records VALUES(NULL,100, '2026-09-01 00:00', NULL, '', '', '', 0)")
     finally:
         con.close()
     assert database.get_month_statistics(2026, 9) == {

@@ -1,4 +1,4 @@
-"""Schema v1 -> v2: existing ledgers open unchanged in meaning, never rebuilt from scratch."""
+"""Schema v1/v2 -> v3: existing ledgers open unchanged in meaning, never rebuilt from scratch."""
 from contextlib import closing
 from datetime import datetime
 import sqlite3
@@ -48,13 +48,14 @@ def test_v1_ledger_is_migrated_with_every_fact_preserved(tmp_path):
     db = Database(path)
     db.initialize_database()
     with closing(sqlite3.connect(path)) as con:
-        assert con.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert con.execute("PRAGMA user_version").fetchone()[0] == 3
         assert con.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         names = [r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")]
-        assert "records" in names and "records_v2" not in names
+        assert "records" in names and "records_v3" not in names
         assert con.execute("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_records_datetime'").fetchone()
     migrated = dump(path)
-    expected = [(i, a, d, {"饮食": "生活"}.get(c, c), desc, ca, ua) for i, a, d, c, desc, ca, ua in V1_ROWS]
+    # v1 made the person choose every category, so every one is the person's own.
+    expected = [(i, a, d, {"饮食": "生活"}.get(c, c), desc, ca, ua, 1) for i, a, d, c, desc, ca, ua in V1_ROWS]
     assert migrated == expected
     # Reading through the application layer agrees and the month totals are unchanged.
     september = db.get_records_by_month(2026, 9)
@@ -129,12 +130,12 @@ def test_invalid_legacy_row_stops_migration_and_leaves_v1_untouched(tmp_path):
 def test_failed_rebuild_rolls_back_to_v1(tmp_path, monkeypatch):
     path = tmp_path / "ledger.sqlite3"
     make_v1(path)
-    original = Database._migrate_to_v2
+    original = Database._migrate_to_v3
 
     def broken(con):
         original(con)
         raise DatabaseError("simulated failure after the rebuild")
-    monkeypatch.setattr(Database, "_migrate_to_v2", staticmethod(broken))
+    monkeypatch.setattr(Database, "_migrate_to_v3", staticmethod(broken))
     with pytest.raises(DatabaseError):
         Database(path).initialize_database()
     with closing(sqlite3.connect(path)) as con:
@@ -176,3 +177,27 @@ def test_v2_shape_is_verified_strictly(tmp_path):
     with pytest.raises(DatabaseError):
         Database(path).initialize_database()
     assert path.read_bytes() == before
+
+
+V2_DDL = V1_DDL.replace("category TEXT NOT NULL CHECK(category IN ('饮食','工具','娱乐'))",
+                        "category TEXT CHECK(category IS NULL OR category IN ('生活','工具','娱乐'))")
+
+
+def test_v2_ledger_gains_the_origin_of_each_category(tmp_path):
+    """v2 stored the person's categories (or exact copies of them) and NULL for 'not judged':
+    stored categories become the person's, NULLs are left for the software to judge."""
+    path = tmp_path / "ledger.sqlite3"
+    with closing(sqlite3.connect(path)) as con, con:
+        con.execute(V2_DDL)
+        con.executemany("INSERT INTO records VALUES (?,?,?,?,?,?,?)", [
+            (1, 2850, "2026-09-19 22:15", None, "晚饭", "2026-09-19T22:15:00", "2026-09-19T22:15:00"),
+            (3, 5900, "2026-09-12 09:00", "工具", "ChatGPT", "2026-09-12T09:00:00", "2026-09-12T09:00:00")])
+        con.execute("PRAGMA user_version = 2")
+    db = Database(path)
+    db.initialize_database()
+    assert [(r[0], r[3], r[7]) for r in dump(path)] == [(1, None, 0), (3, "工具", 1)]
+    assert db.user_labels() == [(3, "ChatGPT", "工具", ("2026-09-12T09:00:00", 3))]
+    backup = tmp_path / ("ledger.sqlite3" + BACKUP_SUFFIX)
+    with closing(sqlite3.connect(backup)) as con:
+        assert con.execute("PRAGMA user_version").fetchone()[0] == 2
+        assert len(con.execute("PRAGMA table_info(records)").fetchall()) == 7

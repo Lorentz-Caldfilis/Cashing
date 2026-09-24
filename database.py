@@ -3,18 +3,23 @@
 Schema history
   v1  category TEXT NOT NULL IN ('饮食','工具','娱乐')
   v2  category TEXT NULL     IN ('生活','工具','娱乐');  '饮食' became '生活'.
-      NULL means "not judged yet". Migration rebuilds the table inside one
-      transaction after writing a file backup next to the ledger.
+      NULL means "not judged yet".
+  v3  category_by_user INTEGER 0/1. ``category`` now only ever holds what the person
+      stated; the software's own judgement is derived on read (classification.py) and never
+      stored. (category NULL, by_user 1) = the person chose 暂未判断. Every category stored
+      by v1/v2 counts as the person's: v1 required one, v2 only copied the person's own.
+Every migration rebuilds the table inside one transaction after writing a file backup
+next to the ledger.
 """
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 import sqlite3
-from domain import CATEGORIES, validate_record, shift_month, summarize_records, parse_stored_datetime
+from domain import validate_record, shift_month, summarize_records, parse_stored_datetime
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 LEGACY_CATEGORY_MAP = {"饮食": "生活"}
-BACKUP_SUFFIX = ".before-v2.bak"
+BACKUP_SUFFIX = ".before-v3.bak"
 
 CREATE_RECORDS = """
     CREATE TABLE {name} (
@@ -26,11 +31,15 @@ CREATE_RECORDS = """
         category TEXT CHECK(category IS NULL OR category IN ('生活','工具','娱乐')),
         description TEXT NOT NULL DEFAULT '' CHECK(length(description) <= 200),
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        category_by_user INTEGER NOT NULL DEFAULT 0 CHECK(category_by_user IN (0, 1)),
+        CHECK(category IS NULL OR category_by_user = 1)
     )
 """
 COLUMN_TYPES = {"id": "INTEGER", "amount_cents": "INTEGER", "datetime": "TEXT",
-                "category": "TEXT", "description": "TEXT", "created_at": "TEXT", "updated_at": "TEXT"}
+                "category": "TEXT", "description": "TEXT", "created_at": "TEXT", "updated_at": "TEXT",
+                "category_by_user": "INTEGER"}
+LEGACY_COLUMNS = {name: kind for name, kind in COLUMN_TYPES.items() if name != "category_by_user"}
 
 
 class DatabaseError(Exception):
@@ -71,6 +80,9 @@ class Database:
             validate_record(record["amount_cents"], when, category, record["description"])
             if type(record["id"]) is not int or record["id"] <= 0:
                 raise ValueError("Invalid record ID")
+            if "category_by_user" in record and (record["category_by_user"] not in (0, 1) or (
+                    category is not None and record["category_by_user"] != 1)):
+                raise ValueError("Invalid category origin")
         except (ValueError, TypeError, KeyError) as exc:
             raise DatabaseError("数据库中有无效账单或时间格式，请保留文件并从备份检查；未修改原记录。") from exc
         return record
@@ -88,7 +100,7 @@ class Database:
         return columns
 
     def _backup_before_migration(self, con):
-        """Plain file copy of the untouched v1 ledger, made through SQLite so it is consistent."""
+        """Plain file copy of the untouched older ledger, made through SQLite so it is consistent."""
         target = self.path.with_name(self.path.name + BACKUP_SUFFIX)
         if target.exists():
             return
@@ -108,7 +120,7 @@ class Database:
             raise DatabaseError("无法创建数据目录，请检查该目录的写入权限。") from exc
         with self._connection(create=True) as con:
             version = con.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, 1, SCHEMA_VERSION):
+            if version not in (0, 1, 2, SCHEMA_VERSION):
                 raise DatabaseError("数据库来自其他版本，请使用对应版本打开；未修改账单。")
             if con.execute("PRAGMA quick_check").fetchone()[0] != "ok":
                 raise DatabaseError("数据库完整性检查失败，请保留文件并检查备份；未修改账单。")
@@ -119,13 +131,13 @@ class Database:
                 # Validate before touching anything; the backup precedes the rebuild.
                 self._verify_legacy_shape(con)
                 for row in con.execute("SELECT * FROM records"):
-                    self._checked_record(row, legacy=True)
+                    self._checked_record(row, legacy=version < 2)
                 self._backup_before_migration(con)
             # Python's legacy sqlite3 transaction mode does not BEGIN for DDL.
             # Explicitly make the entire initialization atomic.
             con.execute("BEGIN IMMEDIATE")
             if legacy:
-                self._migrate_to_v2(con)
+                self._migrate_to_v3(con)
             elif not exists:
                 con.execute(CREATE_RECORDS.format(name="records"))
             self._verify_shape(con)
@@ -139,31 +151,34 @@ class Database:
     @staticmethod
     def _verify_legacy_shape(con):
         columns = {row["name"]: row for row in con.execute("PRAGMA table_info(records)")}
-        if set(columns) != set(COLUMN_TYPES) or any(
+        if set(columns) != set(LEGACY_COLUMNS) or any(
             columns[name]["type"].upper() != kind or columns[name]["pk"] != (1 if name == "id" else 0)
-            for name, kind in COLUMN_TYPES.items()
+            for name, kind in LEGACY_COLUMNS.items()
         ):
             raise DatabaseError("数据库结构不兼容，请保留文件并检查版本；未覆盖账单。")
 
     @staticmethod
-    def _migrate_to_v2(con):
-        con.execute(CREATE_RECORDS.format(name="records_v2"))
+    def _migrate_to_v3(con):
+        """v1 or v2 → v3. Every stored category was the person's (v1 required one; v2 only
+        copied the person's own), so each becomes a category_by_user row."""
+        con.execute(CREATE_RECORDS.format(name="records_v3"))
         con.execute("""
-            INSERT INTO records_v2 (id, amount_cents, datetime, category, description, created_at, updated_at)
+            INSERT INTO records_v3 (id, amount_cents, datetime, category, description, created_at, updated_at,
+                                    category_by_user)
             SELECT id, amount_cents, datetime,
                    CASE category WHEN '饮食' THEN '生活' ELSE category END,
-                   description, created_at, updated_at
+                   description, created_at, updated_at, category IS NOT NULL
             FROM records ORDER BY id
         """)
         before = con.execute("SELECT COUNT(*) FROM records").fetchone()[0]
-        after = con.execute("SELECT COUNT(*) FROM records_v2").fetchone()[0]
+        after = con.execute("SELECT COUNT(*) FROM records_v3").fetchone()[0]
         if before != after:
             raise DatabaseError("升级时记录数量不一致，已回滚；原有账单未被修改。")
         sequence = con.execute("SELECT seq FROM sqlite_sequence WHERE name='records'").fetchone()
         con.execute("DROP TABLE records")
-        con.execute("ALTER TABLE records_v2 RENAME TO records")
+        con.execute("ALTER TABLE records_v3 RENAME TO records")
         # Keep the id counter so deleted ids are never reused after the rebuild.
-        con.execute("DELETE FROM sqlite_sequence WHERE name IN ('records', 'records_v2')")
+        con.execute("DELETE FROM sqlite_sequence WHERE name IN ('records', 'records_v3')")
         if sequence is not None:
             con.execute("INSERT INTO sqlite_sequence (name, seq) VALUES ('records', ?)", (sequence[0],))
 
@@ -171,14 +186,20 @@ class Database:
     def _now():
         return datetime.now().isoformat(timespec="seconds")
 
-    def add_record(self, amount_cents, when, category=None, description=""):
+    @staticmethod
+    def _by_user(category, by_user):
+        """A stored category is always the person's; None is either 'said nothing' or 暂未判断."""
+        return int(category is not None or bool(by_user))
+
+    def add_record(self, amount_cents, when, category=None, description="", *, category_by_user=False):
         validate_record(amount_cents, when, category, description)
         now = self._now()
         with self._connection() as con:
             cursor = con.execute(
-                "INSERT INTO records (amount_cents, datetime, category, description, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (amount_cents, when.isoformat(sep=" ", timespec="minutes"), category, description, now, now),
+                "INSERT INTO records (amount_cents, datetime, category, description, created_at, updated_at, "
+                "category_by_user) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (amount_cents, when.isoformat(sep=" ", timespec="minutes"), category, description, now, now,
+                 self._by_user(category, category_by_user)),
             )
             return cursor.lastrowid
 
@@ -188,19 +209,21 @@ class Database:
         validate_record(record["amount_cents"], when, record["category"], record["description"])
         with self._connection() as con:
             con.execute(
-                "INSERT INTO records (id, amount_cents, datetime, category, description, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO records (id, amount_cents, datetime, category, description, created_at, updated_at, "
+                "category_by_user) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (record["id"], record["amount_cents"], record["datetime"], record["category"],
-                 record["description"], record["created_at"], record["updated_at"]),
+                 record["description"], record["created_at"], record["updated_at"],
+                 self._by_user(record["category"], record.get("category_by_user"))),
             )
 
-    def update_record(self, record_id, amount_cents, when, category, description=""):
+    def update_record(self, record_id, amount_cents, when, category, description="", *, category_by_user=False):
         validate_record(amount_cents, when, category, description)
         with self._connection() as con:
             cursor = con.execute(
-                "UPDATE records SET amount_cents=?, datetime=?, category=?, description=?, updated_at=? WHERE id=?",
+                "UPDATE records SET amount_cents=?, datetime=?, category=?, description=?, updated_at=?, "
+                "category_by_user=? WHERE id=?",
                 (amount_cents, when.isoformat(sep=" ", timespec="minutes"), category, description,
-                 self._now(), record_id),
+                 self._now(), self._by_user(category, category_by_user), record_id),
             )
             if cursor.rowcount != 1:
                 raise DatabaseError("这条记录已不存在，请刷新账单。")
@@ -232,6 +255,8 @@ class Database:
             )]
 
     def get_month_statistics(self, year, month):
+        """Stored facts only (the person's categories). Review shows Ledger.month, which adds
+        the software's derived categories."""
         return summarize_records(self.get_records_by_month(year, month))
 
     def search_records(self, text):
@@ -246,16 +271,9 @@ class Database:
                 (pattern,),
             )]
 
-    def latest_category_for(self, description):
-        """The category most recently given to an identical description, or None."""
-        key = description.strip()
-        if not key:
-            return None
+    def user_labels(self):
+        """Every category the person stated, as (id, description, category, order)."""
         with self._connection() as con:
-            row = con.execute(
-                "SELECT category FROM records WHERE category IS NOT NULL "
-                "AND lower(trim(description)) = lower(?) ORDER BY updated_at DESC, id DESC LIMIT 1",
-                (key,),
-            ).fetchone()
-        category = row["category"] if row else None
-        return category if category in CATEGORIES else None
+            return [(row["id"], row["description"], row["category"], (row["updated_at"], row["id"]))
+                    for row in con.execute(
+                        "SELECT id, description, category, updated_at FROM records WHERE category_by_user = 1")]

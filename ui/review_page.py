@@ -361,6 +361,17 @@ class HistoryList(QWidget):
     def row_for(self, record_id):
         return next((row for row in self.live_rows() if row.record["id"] == record_id), None)
 
+    def reinterpret(self, ledger, *, skip=None):
+        """A correction can change how other records read (Philosophy §5.1). Show each row's
+        current interpretation in place; nothing is rebuilt or moved."""
+        for row in self.live_rows():
+            if row is skip or row.editing:
+                continue
+            fresh = ledger.interpret(row.record)
+            if fresh["category"] != row.record["category"]:
+                row.show_record(fresh)
+        self._recompute_showing()
+
 
 class EdgeLine(QWidget):
     """A hairline across the window at the edge of the scrolling list, shown only while records
@@ -763,6 +774,8 @@ class ReviewPage(QWidget):
 
     def _row_changed(self, row, old, new):
         """A legal change already reached the ledger: keep the summary honest right away."""
+        if (old["category"], old["description"]) != (new["category"], new["description"]):
+            self.history.reinterpret(self.ledger, skip=row)
         if not self.searching:
             try:
                 totals = self.ledger.month(self.year, self.month).totals
