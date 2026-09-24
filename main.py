@@ -23,7 +23,7 @@ def main(argv=None):
     app = QApplication(sys.argv[:1])
     app.setApplicationName("Cashing")
     app.setOrganizationName("Cashing")
-    app.setApplicationVersion("1.0.0")
+    app.setApplicationVersion("1.1.0")
     translator = QTranslator(app)
     translated = translator.load("qtbase_zh_CN", QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath))
     app.setProperty("chinese_translation_loaded", translated)
@@ -43,7 +43,7 @@ def main(argv=None):
         database = Database(directory / ("smoke-ledger.sqlite3" if args.smoke_test else "ledger.sqlite3"))
         database.initialize_database()
         from ui.main_window import MainWindow
-        window = MainWindow(database)
+        window = MainWindow(database, directory)
     except (OSError, ValueError, DatabaseError) as exc:
         logging.exception("Startup failed")
         if not args.smoke_test:
@@ -67,7 +67,7 @@ def main(argv=None):
     sys.excepthook = report_unhandled
     window.show()
     if args.smoke_test:
-        from smoke_check import schedule_smoke_check
+        from scripts.smoke_check import schedule_smoke_check
         schedule_smoke_check(app, window, database, directory)
     try:
         return app.exec()

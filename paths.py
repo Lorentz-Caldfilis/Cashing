@@ -32,7 +32,4 @@ def prepare_smoke_directory(directory):
 
 def prepare_runtime(directory):
     directory.mkdir(parents=True, exist_ok=True)
-    cache = directory / "cache" / "matplotlib"
-    cache.mkdir(parents=True, exist_ok=True)
-    os.environ["MPLCONFIGDIR"] = str(cache)
     os.environ["QT_API"] = "pyside6"

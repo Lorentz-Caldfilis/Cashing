@@ -19,7 +19,7 @@ def test_more_invalid_money(amount):
                                  datetime(2026,1,1,tzinfo=timezone.utc)])
 def test_unsupported_datetime_is_rejected(database, when):
     with pytest.raises(ValueError):
-        database.add_record(1,when,"饮食")
+        database.add_record(1,when,"生活")
 
 
 def test_months_and_integer_totals_against_independent_oracle(database):
@@ -48,14 +48,14 @@ def test_months_and_integer_totals_against_independent_oracle(database):
 @pytest.mark.parametrize("year,last",[(2023,28),(2024,29)])
 def test_february_excludes_both_neighbours(database,year,last):
     for when in [datetime(year,1,31,23,59),datetime(year,2,1),datetime(year,2,last,23,59),datetime(year,3,1)]:
-        database.add_record(1,when,"饮食")
+        database.add_record(1,when,"生活")
     assert [r["datetime"] for r in database.get_records_by_month(year,2)]==[
         f"{year}-02-{last} 23:59", f"{year}-02-01 00:00"]
 
 
 @pytest.mark.parametrize("operation", ["UPDATE","DELETE"])
 def test_mid_operation_abort_rolls_back_other_writes(database,operation):
-    a=database.add_record(100,datetime(2026,9,1),"饮食")
+    a=database.add_record(100,datetime(2026,9,1),"生活")
     b=database.add_record(200,datetime(2026,9,1),"工具")
     with closing(sqlite3.connect(database.path)) as con,con:
         con.execute(f"""CREATE TRIGGER reject_change BEFORE {operation} ON records
@@ -67,19 +67,19 @@ def test_mid_operation_abort_rolls_back_other_writes(database,operation):
             database.update_record(a,300,datetime(2026,9,1),"娱乐")
         else:
             database.delete_record(a)
-    assert database.get_month_statistics(2026,9)=={"饮食":100,"工具":200,"娱乐":0,"total":300}
+    assert database.get_month_statistics(2026,9)=={"生活":100,"工具":200,"娱乐":0,"unknown":0,"total":300}
 
 
 def test_failed_update_validation_leaves_original(database):
     rid=database.add_record(1234,datetime(2026,9,1),"工具","keep")
     before=database.get_records_by_month(2026,9)
     with pytest.raises(ValueError):
-        database.update_record(rid,-1,datetime(2026,9,1),"饮食")
+        database.update_record(rid,-1,datetime(2026,9,1),"生活")
     assert database.get_records_by_month(2026,9)==before
 
 
 def test_corrupted_row_after_start_is_user_facing(database):
-    database.add_record(1,datetime(2026,9,1),"饮食")
+    database.add_record(1,datetime(2026,9,1),"生活")
     with closing(sqlite3.connect(database.path)) as con,con:
         con.execute("UPDATE records SET datetime='2026-09-31 00:00'")
     with pytest.raises(DatabaseError):
@@ -92,7 +92,7 @@ def test_database_read_only_write_failure(database,monkeypatch):
         return connect(database_uri.replace("?mode=rw","?mode=ro"),**kwargs)
     monkeypatch.setattr(sqlite3,"connect",readonly)
     with pytest.raises(DatabaseError):
-        database.add_record(1,datetime(2026,9,1),"饮食")
+        database.add_record(1,datetime(2026,9,1),"生活")
     assert database.get_records_by_month(2026,9)==[]
 
 
@@ -121,7 +121,7 @@ def test_chinese_spaces_and_uri_characters(tmp_path,monkeypatch):
     prepare_runtime(directory)
     db=Database(directory/"ledger.sqlite3")
     db.initialize_database()
-    db.add_record(1,datetime(2026,9,1),"饮食","特殊路径")
+    db.add_record(1,datetime(2026,9,1),"生活","特殊路径")
     assert db.get_month_statistics(2026,9)["total"]==1
 
 

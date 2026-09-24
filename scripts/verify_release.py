@@ -10,7 +10,6 @@ from pathlib import Path
 import sqlite3
 import subprocess
 import time
-import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -94,7 +93,8 @@ def default_path(exe,folder):
             assert con.execute("PRAGMA integrity_check").fetchone()[0]=="ok"
             if index==0:
                 assert con.execute("SELECT COUNT(*) FROM records").fetchone()[0]==0
-                con.execute("INSERT INTO records VALUES(NULL,4321,'2030-01-01 00:00','工具','isolated validation','','')")
+                con.execute("INSERT INTO records (amount_cents,datetime,category,description,created_at,updated_at,"
+                            "category_by_user) VALUES(4321,'2030-01-01 00:00','工具','isolated validation','','',1)")
             else:
                 assert con.execute("SELECT amount_cents FROM records").fetchone()[0]==4321
     return {"status":"PASS","restart_preserves_data":True,"default_path":str(db)}

@@ -3,7 +3,7 @@ $project = [IO.Path]::GetFullPath($PSScriptRoot + '\..')
 $testRoot = [IO.Path]::GetFullPath((Join-Path $project 'work\中文 空格 解压只读'))
 if (!$testRoot.StartsWith($project + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Invalid test directory.' }
 if (Test-Path -LiteralPath $testRoot) { throw 'Use a new extraction directory.' }
-Expand-Archive -LiteralPath (Join-Path $project 'release\Cashing-v1.0.0-windows.zip') -DestinationPath $testRoot
+Expand-Archive -LiteralPath (Join-Path $project 'release\Cashing-v1.1.0-windows.zip') -DestinationPath $testRoot
 $install = Join-Path $testRoot 'Cashing'
 $original = Get-Acl -LiteralPath $install
 $restricted = Get-Acl -LiteralPath $install

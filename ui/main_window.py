@@ -1,91 +1,170 @@
-from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QLabel, QListWidget, QStackedWidget, QScrollArea, QFrame,
+"""Cashing main window: two full-window spaces, Capture ⇄ Review, and window-level overlays."""
+from pathlib import Path
+from PySide6.QtCore import QPoint, QUrl
+from PySide6.QtGui import QShortcut, QKeySequence, QDesktopServices
+from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QToolButton, QMenu, QMessageBox
+from draft import DraftStore
+from ledger import Ledger
+from ui import theme
+from ui.capture_page import CapturePage
+from ui.controls import MoreButton
+from ui.review_page import ReviewPage, HEADER_LINE
+from ui.spaces import (
+    SpaceSwitcher, PageDots, EdgeZone, WheelNavigator, EDGE_WIDTH, FOOTER_HEIGHT, DOTS_HEIGHT,
 )
-from ui.input_page import InputPage
-from ui.records_page import RecordsPage
+from ui.toast import Toast
 
-STYLE = """
-QWidget { font-family: "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
-          font-size: 10pt; color: #233347; }
-QMainWindow, QDialog { background: #f5f7fa; }
-QLabel#title { font-size: 22pt; font-weight: 600; }
-QLabel#section { font-size: 12pt; font-weight: 600; }
-QLabel#muted { color: #6b7889; }
-QLabel#amount { font-size: 15pt; font-weight: 600; color: #087f6b; }
-QFrame#card { background: white; border: 1px solid #e3e9ee; border-radius: 10px; }
-QPushButton { background: white; border: 1px solid #d9e1e8; border-radius: 6px;
-              padding: 9px 14px; }
-QPushButton:hover { background: #eaf4f1; border-color: #4aa895; }
-QPushButton:pressed { background: #d4ebe4; }
-QPushButton#primary { background: #087f6b; color: white; border-color: #087f6b; }
-QPushButton#primary:hover { background: #066955; }
-QPushButton#danger { color: #b42318; }
-QPushButton:disabled, QPushButton#danger:disabled { color: #a3acb7; background: #f1f3f5; border-color: #e3e9ee; }
-QLineEdit, QDateTimeEdit, QComboBox, QPlainTextEdit {
-    background: white; border: 1px solid #d9e1e8; border-radius: 5px; padding: 9px;
-    selection-background-color: #087f6b; }
-QLineEdit:focus, QDateTimeEdit:focus, QComboBox:focus { border-color: #087f6b; }
-QTableWidget { background: white; alternate-background-color: #f7fafb;
-    border: 1px solid #e3e9ee; gridline-color: #edf1f4;
-    selection-background-color: #dcefe9; selection-color: #163a30; }
-QHeaderView::section { background: #edf2f5; border: none; padding: 10px 5px; }
-QListWidget { background: #eaf0f3; border: none; outline: none; }
-QListWidget::item { padding: 14px 18px; margin: 4px 8px; border-radius: 6px; }
-QListWidget::item:selected { background: #d3e9e1; color: #076753; }
-QListWidget::item:hover { background: #dfebe8; }
-"""
+CAPTURE, REVIEW = 0, 1
+MENU_GAP = 4
+DOTS_BOTTOM = (FOOTER_HEIGHT - DOTS_HEIGHT) // 2   # the dots on the footer band's middle line
+WINDOW_WIDTH, WINDOW_HEIGHT = 1000, 760
+
+
+class AnchoredMenu(QMenu):
+    """The ⋮ menu hangs from its button: right edges aligned, just below it, so it opens
+    inside the window instead of spilling past the window's edge onto the desktop."""
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        anchor = self.parentWidget()
+        if anchor is None:
+            return
+        corner = anchor.mapToGlobal(QPoint(anchor.width(), anchor.height() + MENU_GAP))
+        self.move(corner.x() - self.width(), corner.y())
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, database):
+    def __init__(self, database, data_directory=None):
         super().__init__()
-        self.setWindowTitle("Cashing · 个人记账")
+        self.setWindowTitle("Cashing")
+        self.ledger = Ledger(database)
+        self.drafts = DraftStore(data_directory) if data_directory else None
         screen = QApplication.primaryScreen().availableGeometry()
-        self.setMinimumSize(min(900, max(320, screen.width() - 40)),
-                            min(600, max(240, screen.height() - 80)))
-        self.resize(min(1180, screen.width() - 40), min(780, screen.height() - 60))
-        self.setStyleSheet(STYLE)
+        self.setMinimumSize(min(640, max(320, screen.width() - 40)), min(480, max(240, screen.height() - 80)))
+        self.resize(min(WINDOW_WIDTH, screen.width() - 40), min(WINDOW_HEIGHT, screen.height() - 60))
+        QApplication.instance().setFont(theme.font(theme.BASE_PX))
+        self.setStyleSheet(theme.STYLE)
+
         central = QWidget()
-        layout = QHBoxLayout(central)
+        central.setObjectName("space")
+        layout = QVBoxLayout(central)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        sidebar = QWidget()
-        sidebar.setFixedWidth(160)
-        side = QVBoxLayout(sidebar)
-        brand = QLabel("Cashing")
-        brand.setStyleSheet("font-size: 20pt; font-weight: 600; color: #087f6b; padding: 18px 8px")
-        side.addWidget(brand)
-        self.navigation = QListWidget()
-        self.navigation.addItems(["记账", "查看账单"])
-        side.addWidget(self.navigation)
-        footer = QLabel("个人记账 · v1.0\n数据仅保存在本机")
-        footer.setObjectName("muted")
-        footer.setStyleSheet("padding: 12px 8px; font-size: 9pt")
-        side.addWidget(footer)
-        layout.addWidget(sidebar)
-        self.pages = QStackedWidget()
-        self.input_page = InputPage(database)
-        self.records_page = RecordsPage(database)
-        self.pages.addWidget(self.input_page)
-        self.pages.addWidget(self.records_page)
-        self.content_scroll = QScrollArea()
-        self.content_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        self.content_scroll.setWidgetResizable(True)
-        self.content_scroll.setWidget(self.pages)
-        layout.addWidget(self.content_scroll, 1)
+        self.spaces = SpaceSwitcher()
+        self.capture = CapturePage(self.ledger, self.notify)
+        self.review = ReviewPage(self.ledger, self.notify)
+        self.spaces.add_page(self.capture)
+        self.spaces.add_page(self.review)
+        layout.addWidget(self.spaces)
         self.setCentralWidget(central)
-        self.navigation.currentRowChanged.connect(self.switch_page)
-        self.input_page.saved.connect(self.after_save)
-        self.navigation.setCurrentRow(0)
-        self.statusBar().showMessage(f"数据文件：{database.path}")
-        self.statusBar().setSizeGripEnabled(False)
 
-    def switch_page(self, row):
-        self.pages.setCurrentIndex(row)
-        if row == 1:
-            self.records_page.show_current_month()
-        elif row == 0:
-            self.input_page.form.amount.setFocus()
+        # Window-level overlays: stable positions regardless of the space shown.
+        self.dots = PageDots(2, central)
+        self.dots.activated.connect(self.switch_to)
+        self.left_edge = EdgeZone(-1, central)
+        self.left_edge.activated.connect(lambda: self.switch_to(CAPTURE))
+        self.right_edge = EdgeZone(+1, central)
+        self.right_edge.activated.connect(lambda: self.switch_to(REVIEW))
+        self.toast = Toast(central)
+        self.utility = MoreButton("更多", central)
+        self.utility.setObjectName("utility")
+        self.utility.setText("⋮")  # named for assistive technology; the glyph itself is painted
+        self.utility.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.utility_menu = AnchoredMenu(self.utility)
+        self.open_data_action = self.utility_menu.addAction("打开数据目录")
+        self.open_data_action.triggered.connect(self.open_data_directory)
+        self.utility_menu.addSeparator()
+        self.about_action = self.utility_menu.addAction("关于 Cashing")
+        self.about_action.triggered.connect(self.show_about)
+        self.utility.setMenu(self.utility_menu)
+        self.data_directory = Path(data_directory) if data_directory else None
+        self.database_path = database.path
 
-    def after_save(self):
-        self.records_page.refresh()
+        self.capture.changed.connect(self.review.refresh)
+        QShortcut(QKeySequence("Alt+Right"), self, activated=lambda: self.switch_to(REVIEW))
+        QShortcut(QKeySequence("Alt+Left"), self, activated=lambda: self.switch_to(CAPTURE))
+        self.wheel = WheelNavigator(self, self.move_by)
+        QApplication.instance().installEventFilter(self.wheel)
+        self._restore_draft()
+        self._update_overlays()
+
+    # ---- spaces ----------------------------------------------------------
+    def current_index(self):
+        return self.spaces.current_index()
+
+    def move_by(self, direction):
+        self.switch_to(self.spaces.current_index() + direction)
+
+    def switch_to(self, index, animate=True):
+        index = max(CAPTURE, min(REVIEW, index))  # no wrap-around
+        if index == self.spaces.current_index():
+            return False
+        if index == CAPTURE and not self.review.prepare_leave():
+            return False  # an invalid edit must be fixed or cancelled first
+        if index == REVIEW:
+            # Bring the destination up to date before it starts moving: the two spaces
+            # slide as they are, and nothing re-lays out during the transition.
+            self.review.refresh()
+        self.spaces.set_index(index, animate)
+        self.dots.set_index(index)
+        self._update_overlays()
+        if index == CAPTURE:
+            self.capture.focus_default()
+        else:
+            self.review.setFocus()
+        return True
+
+    def notify(self, text, undo=None, *, danger=False):
+        self.toast.show_message(text, undo, danger=danger)
+
+    # ---- utility (low-frequency, never a third space) ---------------------
+    def open_data_directory(self):
+        target = self.data_directory or self.database_path.parent
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(target)))
+
+    def about_text(self):
+        version = QApplication.applicationVersion() or ""
+        return (f"Cashing {version}".strip() + "\n本地个人消费记录，数据只保存在本机。\n\n"
+                f"账单文件：{self.database_path}")
+
+    def show_about(self):
+        QMessageBox.about(self, "关于 Cashing", self.about_text())
+
+    # ---- draft -------------------------------------------------------------
+    def _restore_draft(self):
+        if self.drafts is None:
+            return
+        draft = self.drafts.load()
+        if draft is not None:
+            self.capture.restore_draft(draft)
+
+    def closeEvent(self, event):
+        QApplication.instance().removeEventFilter(self.wheel)
+        if self.drafts is not None:
+            self.drafts.save(self.capture.draft())
+        super().closeEvent(event)
+
+    # ---- geometry ----------------------------------------------------------
+    def _update_overlays(self):
+        central = self.centralWidget()
+        width, height = central.width(), central.height()
+        self.dots.move((width - self.dots.width()) // 2, height - DOTS_BOTTOM - self.dots.height())
+        self.left_edge.setGeometry(0, 56, EDGE_WIDTH, max(0, height - 112))
+        self.right_edge.setGeometry(width - EDGE_WIDTH, 56, EDGE_WIDTH, max(0, height - 112))
+        index = self.spaces.current_index()
+        self.left_edge.setVisible(index > CAPTURE)
+        self.right_edge.setVisible(index < REVIEW)
+        # On the header's line (month, search) rather than just above it; the same place in both spaces.
+        self.utility.move(width - self.utility.width() - 16, HEADER_LINE - self.utility.height() // 2)
+        for overlay in (self.left_edge, self.right_edge, self.dots, self.utility, self.toast):
+            overlay.raise_()
+        self.toast.reposition()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_overlays()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._update_overlays()
+        if self.spaces.current_index() == CAPTURE:
+            self.capture.focus_default()

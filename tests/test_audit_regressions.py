@@ -23,7 +23,7 @@ def test_same_column_names_do_not_make_wrong_schema_compatible(tmp_path):
     "2026-09-01 00:00:59", "2026-09-01 00:00+08:00",
 ])
 def test_bad_stored_time_is_reported_without_overwriting(database, bad_time):
-    database.add_record(1234, datetime(2026, 9, 1), "饮食")
+    database.add_record(1234, datetime(2026, 9, 1), "生活")
     with closing(sqlite3.connect(database.path)) as con, con:
         con.execute("UPDATE records SET datetime=?", (bad_time,))
     before = database.path.read_bytes()
