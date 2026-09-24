@@ -6,6 +6,8 @@
 *.sqlite3
 *.sqlite3-*
 *.db3
+# Pre-upgrade ledger copies (ledger.sqlite3.before-v3.bak)
+*.bak
 # Local execution, caches and release binaries
 .venv/
 venv/

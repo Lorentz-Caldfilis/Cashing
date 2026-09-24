@@ -157,7 +157,8 @@ Get-FileHash .\release\Cashing-v1.0.0-windows.zip -Algorithm SHA256
   capture_page、review_page、record_row（原地编辑与删除边）、toast。
 - docs/design/：冻结的设计规范。docs/development/IMPLEMENTATION_STATUS.md：本轮实现记录。
 - tests/：业务、SQLite、迁移、路径、Ledger、草稿、GUI（Capture / 切换 / Review / 编辑 / 搜索）。
-- scripts/：发行包生成、原生进程验收，以及分类基准 classification_benchmark.py（合成数据、确定性）。
+- scripts/：开发与验收工具——smoke_check.py（`main.py --smoke-test` 调用的 GUI 自动验收）、verify_release.py（原生进程验收）、
+  package_release.py（发行包生成）、classification_benchmark.py（分类基准，合成数据、确定性）。
 - Cashing.spec、version_info.txt、build.ps1：Windows 构建配置。
 - docs/releases/v1.0.0/RELEASE_AUDIT.md：本轮发现、修复、验证证据和限制。
 - 开发缓存、测试账本、日志、发行二进制均被 Git 忽略。

@@ -67,7 +67,7 @@ def main(argv=None):
     sys.excepthook = report_unhandled
     window.show()
     if args.smoke_test:
-        from smoke_check import schedule_smoke_check
+        from scripts.smoke_check import schedule_smoke_check
         schedule_smoke_check(app, window, database, directory)
     try:
         return app.exec()

@@ -199,6 +199,11 @@ Replaces the exact-description-only `classification.py`. Design, alternatives an
 236 tests (`-W error`), pyflakes clean on touched files, smoke ×2 (43 / 46, empty stderr). Frozen build
 not rebuilt this round (`lexicon.py` is a plain import; PyInstaller picks it up).
 
+## Repository tidy-up
+
+`smoke_check.py` moved to `scripts/` (imported by `main.py --smoke-test` as `scripts.smoke_check`, an implicit
+namespace — no package restructuring; PyInstaller collects it). `*.bak` (pre-upgrade ledger copies) is ignored.
+
 ## Needs human visual acceptance
 
 - Trackpad two-finger horizontal swipe: direction, threshold feel, no interference with vertical scrolling.
