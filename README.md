@@ -1,4 +1,4 @@
-# Cashing v1.0.0
+# Cashing v1.1.0
 
 Windows 本地个人消费记录：只有两个空间——**Capture**（记一笔）和 **Review**（看这个月）。
 仅使用 Python、PySide6 与标准库 sqlite3，无网络服务、登录或云同步。
@@ -6,22 +6,22 @@ Windows 本地个人消费记录：只有两个空间——**Capture**（记一�
 
 ## 下载与直接运行
 
-从私有仓库 [v1.0.0 Release](https://github.com/Lorentz-Caldfilis/Cashing/releases/tag/v1.0.0)
-下载 **Cashing-v1.0.0-windows.zip**，完整解压后双击 **Cashing/Cashing.exe**。
+从私有仓库 [v1.1.0 Release](https://github.com/Lorentz-Caldfilis/Cashing/releases/tag/v1.1.0)
+下载 **Cashing-v1.1.0-windows.zip**，完整解压后双击 **Cashing/Cashing.exe**。
 无需安装 Python，无需运行 start.bat，首次启动自动创建空账本。
 
 本项目的正式发行目录：
-`D:\Dev\Cashing\release\Cashing-v1.0.0-windows\Cashing\`
+`D:\Dev\Cashing\release\Cashing-v1.1.0-windows\Cashing\`
 
 正式 EXE：
-`D:\Dev\Cashing\release\Cashing-v1.0.0-windows\Cashing\Cashing.exe`
+`D:\Dev\Cashing\release\Cashing-v1.1.0-windows\Cashing\Cashing.exe`
 
 发行包：
-`D:\Dev\Cashing\release\Cashing-v1.0.0-windows.zip`
+`D:\Dev\Cashing\release\Cashing-v1.1.0-windows.zip`
 
 **必须保留整个 Cashing 文件夹，尤其是 _internal。不能只复制 EXE，也不要在 ZIP 预览中直接运行。**
 `start.bat` 仅是源码开发辅助脚本；`build` 和 `dist` 是构建目录。
-程序自带版本信息 1.0.0，尚未数字签名。
+程序自带版本信息 1.1.0，尚未数字签名。
 
 ## 日常操作
 
@@ -114,7 +114,7 @@ $env:QT_QPA_PLATFORM = "windows"
 
 已整理的发行版验证：
 ```powershell
-.\.venv\Scripts\python.exe .\scripts\verify_release.py --phase frozen --install D:\Dev\Cashing\release\Cashing-v1.0.0-windows\Cashing --label manual-frozen
+.\.venv\Scripts\python.exe .\scripts\verify_release.py --phase frozen --install D:\Dev\Cashing\release\Cashing-v1.1.0-windows\Cashing --label manual-frozen
 ```
 
 验收脚本会在 work 下创建合成记录，操作实际窗口并输出 JSON 与截图。
@@ -140,7 +140,7 @@ MANIFEST.sha256 逐文件清单及 ZIP SHA-256。
 要再次制作同版本发行包，请先保留旧包，再自行清理已确认的生成目录。
 
 ```powershell
-Get-FileHash .\release\Cashing-v1.0.0-windows.zip -Algorithm SHA256
+Get-FileHash .\release\Cashing-v1.1.0-windows.zip -Algorithm SHA256
 ```
 
 ## 代码结构

@@ -23,7 +23,7 @@ def main(argv=None):
     app = QApplication(sys.argv[:1])
     app.setApplicationName("Cashing")
     app.setOrganizationName("Cashing")
-    app.setApplicationVersion("1.0.0")
+    app.setApplicationVersion("1.1.0")
     translator = QTranslator(app)
     translated = translator.load("qtbase_zh_CN", QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath))
     app.setProperty("chinese_translation_loaded", translated)

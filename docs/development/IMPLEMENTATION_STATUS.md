@@ -18,7 +18,7 @@ A new session can resume from this file + git history + `docs/design/` alone.
 
 ## Current phase
 
-All seven milestones complete on `ui-v2-pc-light`. Not merged into `main`; no release package produced (the v1.0.0 release in `release/` is untouched). Remaining work is human visual acceptance (see below) and release decisions (version bump, merge).
+All seven milestones complete on `ui-v2-pc-light`. Not merged into `main`; no release package produced (the v1.0.0 release in `release/` is untouched). Remaining work is human visual acceptance (see below) and the merge; the version is 1.1.0.
 
 ## Architecture (after this round)
 
@@ -220,7 +220,7 @@ namespace — no package restructuring; PyInstaller collects it). `*.bak` (pre-u
 
 ## Known issues / open decisions
 
-- Version still reads 1.0.0 (`main.py`, `version_info.txt`, README title, `package_release.py` NAME); a release of this UI should bump it — not done here.
+- Version is 1.1.0 (`main.py`, `version_info.txt`, `package_release.py` NAME and notices, `verify_readonly.ps1`, README); keep them in step for the next release.
 - `DeleteEdge` hit zone is the whole reserved 44 px room (the painted strip is 3 px) so it can be reached; the strip itself is small by design.
 - Windows 10, clean machines, real IME input, multi-monitor moves: not verified (same limits as v1).
 - Rebuilding a month's rows costs ~3 ms per record (Qt style-sheet polish dominates), so a 200-record month takes

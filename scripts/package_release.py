@@ -7,7 +7,7 @@ import sys
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-NAME = "Cashing-v1.0.0-windows"
+NAME = "Cashing-v1.1.0-windows"
 SOURCE = ROOT / "dist" / "Cashing"
 RELEASE = ROOT / "release"
 TARGET = RELEASE / NAME / "Cashing"
@@ -37,7 +37,7 @@ def main():
         old_report.unlink()  # Only the just-created release copy, never user data.
     licenses = TARGET/"LICENSES"
     licenses.mkdir(exist_ok=True)
-    notices = ["Cashing v1.0.0 third-party dependency notices",
+    notices = ["Cashing v1.1.0 third-party dependency notices",
                "The following license declarations are copied from installed package metadata.",
                "Python and Qt are bundled as separate runtime libraries; do not remove _internal.",
                ""]
