@@ -2,7 +2,7 @@
 
 Windows 本地个人消费记录：只有两个空间——**Capture**（记一笔）和 **Review**（看这个月）。
 仅使用 Python、PySide6 与标准库 sqlite3，无网络服务、登录或云同步。
-界面遵循 `docs/design/` 中冻结的设计规范（PC Light Mode v2）；实现进度见 `docs/development/IMPLEMENTATION_STATUS.md`。
+界面遵循 `docs/design/` 中的设计规范（PC Light Mode v2）。[文档入口](docs/README.md)区分长期产品约束、维护规则、当前状态和历史实施记录。
 
 ## 下载与直接运行
 
@@ -76,7 +76,7 @@ Windows 本地个人消费记录：只有两个空间——**Capture**（记一�
 ## 源码环境
 
 目标：Windows 10 1809+ / Windows 11，x86-64。
-当前实际验证环境为 Windows 11、Python 3.14.7、PySide6/Qt 6.11.2、Matplotlib 3.11.2。
+已记录的验证环境为 Windows 11、Python 3.14.7、PySide6/Qt 6.11.2。当前运行依赖只有 PySide6；环形图使用 QPainter，不依赖 Matplotlib。
 Windows 10 实机及未装 Python 的干净机器仍需人工验收。
 
 ```powershell
@@ -146,7 +146,7 @@ Get-FileHash .\release\Cashing-v1.1.0-windows.zip -Algorithm SHA256
 ## 代码结构
 
 - main.py：启动、中文设置、数据路径与错误处理。
-- database.py：全部 SQL、事务、schema v2 与 v1→v2 迁移、已有记录检查。
+- database.py：全部 SQL、事务、schema v3 与 v1/v2→v3 迁移、已有记录检查。
 - domain.py：金额校验与格式、类别（含“暂未判断”）、月份运算、按天分组、时间文案。
 - ledger.py：UI 无关的记录操作（新增/撤销/编辑/删除/恢复/搜索/月视图）。
 - classification.py：派生类别（用户自己的短语投票 → 内置词最长匹配 → 不判断），只用标准库。
@@ -155,17 +155,17 @@ Get-FileHash .\release\Cashing-v1.1.0-windows.zip -Algorithm SHA256
 - paths.py：数据目录与验收目录隔离。
 - ui/：theme（视觉 token）、main_window（双空间、圆点、边缘、Toast、⋮）、spaces（页面切换）、
   capture_page、review_page、record_row（原地编辑与删除边）、toast。
-- docs/design/：冻结的设计规范。docs/development/IMPLEMENTATION_STATUS.md：本轮实现记录。
+- docs/design/：设计规范；docs/PRODUCT.md、docs/MAINTENANCE.md：长期产品与工程约束；docs/STATUS.md：注明核对日期的状态快照；docs/development/IMPLEMENTATION_STATUS.md：历史实施记录。
 - tests/：业务、SQLite、迁移、路径、Ledger、草稿、GUI（Capture / 切换 / Review / 编辑 / 搜索）。
 - scripts/：开发与验收工具——smoke_check.py（`main.py --smoke-test` 调用的 GUI 自动验收）、verify_release.py（原生进程验收）、
   package_release.py（发行包生成）、classification_benchmark.py（分类基准，合成数据、确定性）。
 - Cashing.spec、version_info.txt、build.ps1：Windows 构建配置。
-- docs/releases/v1.0.0/RELEASE_AUDIT.md：本轮发现、修复、验证证据和限制。
+- docs/releases/v1.0.0/RELEASE_AUDIT.md：v1.0.0 的历史审计证据和限制。
 - 开发缓存、测试账本、日志、发行二进制均被 Git 忽略。
 
 ## 验收范围和已知限制
 
-- v1.0.0 发布审计见 docs/releases/v1.0.0/RELEASE_AUDIT.md；UI v2 的测试与验证记录见 docs/development/IMPLEMENTATION_STATUS.md。
+- 当前版本、远端 Release 与本次核对结果见 docs/STATUS.md；v1.0.0 发布审计和 UI v2 实施记录分别见 docs/releases/v1.0.0/RELEASE_AUDIT.md、docs/development/IMPLEMENTATION_STATUS.md。
 - 已自动验证窗口交互、源码/EXE 重启、特殊路径和多个缩放比例；这不等同于所有 Windows 机器均已验收。
 - Windows 10、无 Python 干净机器、真实中文 IME 输入、跨显示器拖动及物理断网仍需人工验收。
 - 仅消费和固定三类（生活、工具、娱乐，可暂未判断），无收入、预算、账户、云同步、导出、复杂报表。

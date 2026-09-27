@@ -1,8 +1,10 @@
 # Cashing UI v2 (PC Light Mode) — Implementation Status
 
-Branch: `ui-v2-pc-light` (based on `main` @ fef67a5, v1.0.0). One commit per milestone (M1–M7).
-Normative inputs: `docs/design/*.md` (priority: Philosophy > IA > Interaction > Visual > PC Light Amendments > PNG).
-A new session can resume from this file + git history + `docs/design/` alone.
+**历史实施记录。** 本文保留 UI v2 开发阶段的里程碑和当时的验收结果；“本轮”“当前”等用语均相对于所述阶段，不代表仓库现在的状态。当前版本与 GitHub 核对结果见 [状态快照](../STATUS.md)，长期维护规则见 [维护规范](../MAINTENANCE.md)。
+
+Original branch: `ui-v2-pc-light` (based on `main` @ fef67a5, v1.0.0). One commit per milestone (M1–M7); subsequently merged into `main` as v1.1.0.
+Normative inputs: `docs/design/*.md` (priority: Philosophy > IA > Interaction > Art Direction > Visual > PC Light Amendments > PNG).
+For current work, start at `docs/README.md`, then use this file for historical implementation context.
 
 ## Milestones
 
@@ -16,9 +18,9 @@ A new session can resume from this file + git history + `docs/design/` alone.
 | 6 | Search, Utility (⋮), Draft persistence | **done** |
 | 7 | Cleanup (old UI + matplotlib removed, smoke check rewritten, packaging/README), full tests, real launch/restart/migration/frozen verification | **done** |
 
-## Current phase
+## M7 closeout (historical)
 
-All seven milestones complete on `ui-v2-pc-light`. Not merged into `main`; no release package produced (the v1.0.0 release in `release/` is untouched). Remaining work is human visual acceptance (see below) and the merge; the version is 1.1.0.
+At M7 closeout, all seven milestones were complete on `ui-v2-pc-light`. At that time the branch had not yet been merged and no v1.1.0 release package had been produced. Later rounds added adaptive classification (schema v3), merged into `main` and published v1.1.0. The human acceptance items below remain open unless a later record verifies them.
 
 ## Architecture (after this round)
 
@@ -30,7 +32,7 @@ classification.py    Classifier: the person's phrase votes → longest match of 
                      (derived on every read by Ledger; never stored — see docs/development/CLASSIFICATION.md)
 draft.py             Draft + DraftStore (draft.json beside the ledger; never in the DB)
 domain.py            categories (生活/工具/娱乐 or None), money (integer cents), formatting, grouping, time text
-database.py          all SQL; schema v2; v1→v2 migration with backup; strict validation of stored rows
+database.py          all SQL; now schema v3; v1/v2→v3 migration with backup; strict validation of stored rows
 paths.py             data directory / smoke-directory isolation
 ```
 
@@ -38,7 +40,7 @@ Rule kept from v1: the UI never writes SQL; everything goes through `Ledger`.
 
 ## Key decisions and gotchas (read before changing code)
 
-- **Category is a derived interpretation.** `records.category` is nullable in v2; `None` = 尚未分类, shown only as one very weak sentence under the three categories ("另有 ¥X 尚未分类", no dot, no colour, nothing to click) when non-zero, plus a neutral light-grey arc in the ring whenever a ring is drawn at all. The total always includes it. Never a task, badge or fourth category.
+- **Category is a derived interpretation.** `records.category` is nullable in schema v3; `(NULL, 0)` means no user decision, while `(NULL, 1)` means the user chose 暂未判断. The Review displays undecided spending as one weak sentence under the three categories ("另有 ¥X 尚未分类", no dot, no colour, nothing to click) when non-zero, plus a neutral light-grey arc in the ring whenever a ring is drawn at all. The total always includes it. Never a task, badge or fourth category.
 - **v1 `饮食` → `生活`; v1/v2 → v3.** The migration renames the first bucket (1:1, reversible via the backup) and marks every stored category as the person's (`category_by_user = 1`). Migration = validate → SQLite `backup()` to `ledger.sqlite3.before-v3.bak` → `BEGIN IMMEDIATE` table rebuild → verify → commit; failures roll back leaving the v1 file byte-identical. Ids and `sqlite_sequence` are preserved.
 - **Only the person's categories are stored** (schema v3). `Ledger` derives the rest on read, so never pass a record from the UI back into `Database` as if its `category` were stored: `Ledger.delete` hands back the stored row, `Ledger.update` rereads it. Direct `Database` writes (tests, smoke) are fine: `month()` / `search()` rebuild the classifier from the stored labels.
 - **QSS must not set `font-size`/`font-family` on `QWidget`**: stylesheet fonts override `setFont` and flatten the type scale. Base font is set programmatically (`theme.BASE_PX`), sizes via `theme.font(px, weight, tabular)`.
@@ -52,7 +54,7 @@ Rule kept from v1: the UI never writes SQL; everything goes through `Ledger`.
 ## Spec coverage
 
 Implemented: IA §1–§12, §14 (数据/关于 only), §15–§19; Interaction §1–§9, §10–§21 (PC), §23–§28; VDS §3–§17, §20–§26 (Light only); Amendments §1–§13.
-Deliberately not done: Dark Mode, mobile, month-switch fade (Interaction §22 "may"), export/import, any settings, any classifier beyond exact-description reuse, version bump / release packaging / merge.
+At M7 closeout, deliberately not done: Dark Mode, mobile, month-switch fade (Interaction §22 "may"), export/import, settings, a classifier beyond exact-description reuse, and release packaging / merge. Adaptive classification, schema v3, merge and v1.1.0 packaging were completed later; see the follow-up section and `docs/STATUS.md`.
 
 ## Files changed this round
 
