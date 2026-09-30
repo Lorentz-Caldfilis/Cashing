@@ -1,5 +1,15 @@
 # Cashing 状态快照
 
+## 2026-09-30 开发候选
+
+独立分支 `codex/student-edition-20260930`，基线 `ebd0c8b`，草稿 [PR #2](https://github.com/Lorentz-Caldfilis/Cashing/pull/2)。
+未修改 main、未发布新版、未改变许可证。新增原子草稿、单笔粘贴、可逆分类学习、备份和具名 PC 导航。
+最终 Linux/offscreen 268 项测试通过；Linux X11 五次独立进程缩放/重启验收通过。
+完整证据与明确未测项见 [验收矩阵](development/STUDENT_VALIDATION.md)，回退见 [开发记录](development/STUDENT_EDITION.md)。
+本轮未重核历史 Release 资产；下面保留原来的 2026-09-27 发布快照，不作为本分支的发布证据。
+
+---
+
 **核对日期：** 2026-09-27。此页是可更新的快照；不能把它当成长期不变的设计约束。稳定规则见 [PRODUCT.md](PRODUCT.md)和 [MAINTENANCE.md](MAINTENANCE.md)。
 
 ## 版本与远端

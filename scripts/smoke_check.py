@@ -80,6 +80,16 @@ def schedule_smoke_check(app, window, database, directory):
             check(window.current_index() == CAPTURE and capture.amount.hasFocus(), "starts_in_capture_with_amount_focus")
             check(window.grab().save(str(directory / "01-capture.png")), "capture_screenshot")
 
+            # New capture path: clipboard fills a reviewable draft, then autosaves it.
+            app.clipboard().setText("￥１８．５０ 合成午饭")
+            QTest.keyClick(capture.amount, Qt.Key.Key_V, Qt.KeyboardModifier.ControlModifier)
+            check(capture.amount.text() == "18.50" and capture.description.text() == "合成午饭",
+                  "single_entry_clipboard_fills_inputs")
+            check(not database.get_records_by_month(2026, 9), "paste_does_not_save_record")
+            settle(450)
+            check(DraftStore(directory).load() == capture.draft(), "draft_saved_before_close")
+            capture._reset_inputs()
+
             # Capture: local error, then three records through the Enter path.
             QTest.keyClicks(capture.amount, "0")
             QTest.keyClick(capture.amount, Qt.Key.Key_Return)
@@ -126,12 +136,26 @@ def schedule_smoke_check(app, window, database, directory):
             row.category_box.setCurrentText("工具")
             app.processEvents()
             check(review.summary.lines["工具"].amount.text() == "¥50.00", "category_edit_applies_at_once")  # newest id first among equal times
+            row.category_box.setCurrentText("自动判断")
+            check(not database.get_record(row.record["id"])["category_by_user"], "reset_personal_label")
+            QTest.keyClick(window, Qt.Key.Key_Z,
+                           Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)
+            app.processEvents()
+            row = review.rows()[0]
+            check(database.get_record(row.record["id"])["category_by_user"] == 1,
+                  "keyboard_undo_restores_personal_label")
+            click_row(row, "amount")
             row.amount_edit.setText("60.01")
             QTest.keyClick(row.amount_edit, Qt.Key.Key_Return)
             app.processEvents()
             check(not row.editing and review.summary.total.text() == "188.51", "amount_edit_committed_on_enter")
             check(len(review.summary.donut.segments) == 2 and not review.summary.donut.isHidden(),
                   "ring_follows_edit")
+
+            backup_path = directory / ("restart-backup.sqlite3" if previous else "first-backup.sqlite3")
+            window.ledger.backup_to(backup_path)
+            check(Database(backup_path).get_record(row.record["id"]) == database.get_record(row.record["id"]),
+                  "live_backup_preserves_edited_record")
 
             # Delete edge + undo.
             row = review.rows()[0]

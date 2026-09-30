@@ -18,6 +18,10 @@
 
 ## 其余文档
 
+- [Student edition 开发与回退](development/STUDENT_EDITION.md)
+- [本轮验收矩阵与截图](development/STUDENT_VALIDATION.md)
+- [开源准备清单](OPEN_SOURCE_READINESS.md)
+
 - [自适应分类](development/CLASSIFICATION.md)：算法、合成基准、局限和修改门槛。
 - [UI v2 实施记录](development/IMPLEMENTATION_STATUS.md)：历史里程碑与实测记录；其中较早阶段的“当前”只表示当时。
 - `releases/v1.0.0/`：v1.0.0 的历史审计与使用资料，不代表 v1.1.0 状态。
