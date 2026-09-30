@@ -19,6 +19,7 @@
 ## 其余文档
 
 - [Student edition 开发与回退](development/STUDENT_EDITION.md)
+- [第二阶段分类、独立审查修复及界面证据](development/STUDENT_PHASE2.md)
 - [本轮验收矩阵与截图](development/STUDENT_VALIDATION.md)
 - [开源准备清单](OPEN_SOURCE_READINESS.md)
 
