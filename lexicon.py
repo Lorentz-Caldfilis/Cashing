@@ -61,10 +61,8 @@ HEADS = {
 AMBIGUOUS = """
     奶茶 咖啡 拿铁 美式 茶 零食 甜品 蛋糕 冰淇淋 雪糕 饼干 薯片 辣条 巧克力
     书 买书 图书 电子书 耳机 音箱 健身 健身房 游泳 球
-    礼物 红包 转账 聚餐 请客 酒店 机票 闲鱼 烟 酒 按摩 宠物 猫粮 书包 驾校
+    礼物 红包 转账 聚餐 请客 酒店 机票 闲鱼 淘宝 京东 拼多多 网购 烟 酒 按摩 宠物 猫粮 书包 驾校
 """
 
 # Matched and consumed, but no evidence either way: 面试 is not a bowl of noodles.
-NEUTRAL = "面试 见面 当面 淘宝 京东 拼多多 网购"
-# A marketplace gives no category evidence by itself, but must not veto an
-# explicit product (淘宝 教材). Personal labels can still override its phrase.
+NEUTRAL = "面试 见面 当面"
