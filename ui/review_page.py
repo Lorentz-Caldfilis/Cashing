@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt, QObject, Signal, QRectF, QEvent, QTimer
 from PySide6.QtGui import QPainter, QColor, QPen, QShortcut, QKeySequence, QFontMetrics
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QScrollArea, QFrame, QApplication,
-    QSizePolicy, QLineEdit, QStackedWidget,
+    QSizePolicy, QLineEdit, QStackedWidget, QSpacerItem,
 )
 from database import DatabaseError
 from domain import (
@@ -170,7 +170,8 @@ class SummaryBlock(QWidget):
         total_row.addSpacing(2 * CURRENCY_OPTICAL)  # see CurrencyMark: the pair, not its box
         total_row.addStretch()
         layout.addLayout(total_row)
-        layout.addSpacing(TOTAL_TO_STRUCTURE)
+        self.total_gap = QSpacerItem(0, TOTAL_TO_STRUCTURE, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+        layout.addItem(self.total_gap)
 
         self.structure = QWidget()
         structure = QHBoxLayout(self.structure)
@@ -547,7 +548,8 @@ class ReviewPage(QWidget):
         self.no_results.setTextFormat(Qt.TextFormat.PlainText)
         self.no_results.hide()
         column.addWidget(self.no_results)
-        column.addSpacing(SUMMARY_TO_HISTORY)
+        self.history_gap = QSpacerItem(0, SUMMARY_TO_HISTORY, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+        column.addItem(self.history_gap)
         self.history = HistoryList(ledger)
         # Rows keep the delete edge's room after their values; starting the list that much
         # further in puts their text and value edges exactly on the summary's.
@@ -583,6 +585,16 @@ class ReviewPage(QWidget):
         bar.rangeChanged.connect(lambda *_: self._sync_edges())
         bar.valueChanged.connect(lambda _: self._sync_edges())
         self.refresh()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        compact = self.height() < 620
+        self.summary.total_gap.changeSize(0, 16 if compact else TOTAL_TO_STRUCTURE,
+                                          QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+        self.history_gap.changeSize(0, 24 if compact else SUMMARY_TO_HISTORY,
+                                    QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+        self.summary.layout().invalidate()
+        self.column.layout().invalidate()
 
     # ---- the axis ------------------------------------------------------------
     def _sync_axis(self):

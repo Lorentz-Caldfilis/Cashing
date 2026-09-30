@@ -310,3 +310,29 @@ def test_explicit_selection_can_confirm_the_current_automatic_category(window, d
     assert database.get_record(record["id"])["category_by_user"] == 1
     window.toast._run_undo()
     assert database.get_record(record["id"])["category_by_user"] == 0
+
+
+def test_compact_window_shows_first_record_description(window, qtbot, database):
+    database.add_record(1850, datetime(2026, 9, 30, 12, 0), "生活", "食堂午饭")
+    window.resize(640, 480)
+    window.switch_to(REVIEW, animate=False)
+    september(window.review)
+    qtbot.wait(30)
+    row = window.review.rows()[0]
+    bottom = row.description.mapTo(window.review.scroll.viewport(), row.description.rect().bottomLeft()).y()
+    assert bottom < window.review.scroll.viewport().height()
+
+
+def test_invalid_edit_prevents_window_close(window, qtbot, database):
+    database.add_record(1850, datetime(2026, 9, 30, 12, 0), "生活", "食堂午饭")
+    window.switch_to(REVIEW, animate=False)
+    september(window.review)
+    row = window.review.rows()[0]
+    window.review._row_clicked(row, "amount")
+    row.amount_edit.setText("0")
+    qtbot.wait(30)
+    window.close()
+    assert window.isVisible()
+    assert row.amount_edit.text() == "0"
+    assert row.hint.isVisible()
+    window.review.cancel_edit()
