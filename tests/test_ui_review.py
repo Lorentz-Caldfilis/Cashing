@@ -336,3 +336,68 @@ def test_invalid_edit_prevents_window_close(window, qtbot, database):
     assert row.amount_edit.text() == "0"
     assert row.hint.isVisible()
     window.review.cancel_edit()
+
+
+def test_description_change_never_teaches_untouched_category(window, qtbot, database):
+    record = window.ledger.create(1850, datetime(2026, 9, 30, 12, 0), "午饭")
+    window.switch_to(REVIEW, animate=False)
+    september(window.review)
+    row = window.review.history.row_for(record["id"])
+    window.review._row_clicked(row, "description")
+    row.description_edit.setText("电影票")
+    assert window.review.prepare_leave()
+    stored = database.get_record(record["id"])
+    assert stored["description"] == "电影票"
+    assert stored["category_by_user"] == 0
+    assert database.user_labels() == []
+    assert window.ledger.interpret(stored)["category"] == "娱乐"
+
+
+def test_undo_same_category_restores_origin_and_allows_second_reset(window, database):
+    record = window.ledger.create(1850, datetime(2026, 9, 30, 12, 0), "午饭")
+    window.ledger.update(record, category="生活")
+    window.switch_to(REVIEW, animate=False)
+    september(window.review)
+    row = window.review.history.row_for(record["id"])
+    window.review._row_clicked(row, "category")
+    row.category_box.setCurrentIndex(4)
+    assert database.get_record(record["id"])["category_by_user"] == 0
+    window.toast._run_undo()
+    row = window.review.history.row_for(record["id"])
+    assert row.record["category_by_user"] == database.get_record(record["id"])["category_by_user"] == 1
+    window.review._row_clicked(row, "category")
+    row.category_box.setCurrentIndex(4)
+    assert database.user_labels() == []
+
+
+def test_undo_to_automatic_origin_allows_another_explicit_confirmation(window, database):
+    record = window.ledger.create(1850, datetime(2026, 9, 30, 12, 0), "午饭")
+    window.switch_to(REVIEW, animate=False)
+    september(window.review)
+    row = window.review.history.row_for(record["id"])
+    window.review._row_clicked(row, "category")
+    row.category_box.activated.emit(0)
+    assert database.get_record(record["id"])["category_by_user"] == 1
+    window.toast._run_undo()
+    row = window.review.history.row_for(record["id"])
+    assert row.record["category_by_user"] == database.get_record(record["id"])["category_by_user"] == 0
+    window.review._row_clicked(row, "category")
+    row.category_box.activated.emit(0)
+    assert database.get_record(record["id"])["category_by_user"] == 1
+
+
+def test_blocked_edit_undo_can_be_retried_after_cancelling_invalid_input(window, database):
+    record = window.ledger.create(1850, datetime(2026, 9, 30, 12, 0), "午饭")
+    window.switch_to(REVIEW, animate=False)
+    september(window.review)
+    row = window.review.history.row_for(record["id"])
+    window.review._row_clicked(row, "category")
+    row.category_box.setCurrentText("娱乐")
+    row.amount_edit.setText("0")
+    window.toast._run_undo()
+    assert window.toast.can_undo()
+    assert database.get_record(record["id"])["category"] == "娱乐"
+    window.review.cancel_edit()
+    window.toast._run_undo()
+    assert database.get_record(record["id"])["category_by_user"] == 0
+    assert database.user_labels() == []

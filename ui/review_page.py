@@ -295,7 +295,7 @@ class HistoryList(QWidget):
     @staticmethod
     def _state(groups, headings_with_year):
         return (headings_with_year, tuple(
-            (day, tuple((r["id"], r["datetime"], r["amount_cents"], r["description"], r["category"])
+            (day, tuple((r["id"], r["datetime"], r["amount_cents"], r["description"], r["category"], bool(r.get("category_by_user")))
                         for r in records)) for day, records in groups))
 
     def show_groups(self, groups, *, headings_with_year=False):
@@ -802,7 +802,8 @@ class ReviewPage(QWidget):
 
     def _undo_edit(self, receipt):
         if not self.prepare_leave():
-            self.notify("请先完成或取消正在输入的修改。", danger=True)
+            self.notify("请先完成或取消正在输入的修改，再点撤销。",
+                        undo=lambda: self._undo_edit(receipt), danger=True)
             return
         try:
             self.ledger.undo_update(receipt)

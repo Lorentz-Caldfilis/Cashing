@@ -488,7 +488,7 @@ class RecordRow(QWidget):
         self.amount_edit.editingFinished.connect(lambda: self.commit("amount"))
         self.description_edit.editingFinished.connect(lambda: self.commit("description"))
         self.time_edit.editingFinished.connect(lambda: self.commit("time"))
-        self.category_box.currentIndexChanged.connect(lambda _: self.commit("category"))
+        self.category_box.currentIndexChanged.connect(lambda _: self.commit("category", explicit=True))
         self.category_box.activated.connect(lambda _: self.commit("category", explicit=True))
 
     def _set_time_format(self, fmt):
@@ -578,6 +578,8 @@ class RecordRow(QWidget):
         if name == "time":
             value = self.time_edit.dateTime().toPython().replace(second=0, microsecond=0)
             return UNSET if value.strftime("%Y-%m-%d %H:%M") == self.record["datetime"] else value
+        if not explicit:
+            return UNSET  # only a category-control interaction may create a label
         index = self.category_box.currentIndex()
         if index == len(CATEGORIES) + 1:
             return AUTO if self.record.get("category_by_user") else UNSET
@@ -615,6 +617,13 @@ class RecordRow(QWidget):
             self._committing = False
         self.hint.hide()
         self.show_record(new)
+        if self.editing and name != "category":
+            # A description edit may change the derived category. Synchronize the
+            # display without treating that automatic change as personal evidence.
+            blocked = self.category_box.blockSignals(True)
+            category = new["category"]
+            self.category_box.setCurrentIndex(CATEGORIES.index(category) if category in CATEGORIES else len(CATEGORIES))
+            self.category_box.blockSignals(blocked)
         if self.editing:  # keep the labels hidden while editing
             for label in (self.time, self.amount, self.description, self.category):
                 label.hide()
