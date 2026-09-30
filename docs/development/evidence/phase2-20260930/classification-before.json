@@ -1,0 +1,213 @@
+{
+  "data": "fixed synthetic scenarios; not real usage",
+  "dev": {
+    "cases": [
+      {
+        "text": "食堂午饭",
+        "expected": "生活",
+        "actual": "生活"
+      },
+      {
+        "text": "咖啡",
+        "expected": null,
+        "actual": null
+      },
+      {
+        "text": "瑞幸咖啡",
+        "expected": null,
+        "actual": null
+      },
+      {
+        "text": "打印实验报告",
+        "expected": "工具",
+        "actual": "工具"
+      },
+      {
+        "text": "高数教材",
+        "expected": "工具",
+        "actual": "工具"
+      },
+      {
+        "text": "地铁回宿舍",
+        "expected": "生活",
+        "actual": "生活"
+      },
+      {
+        "text": "宿舍洗衣液",
+        "expected": "生活",
+        "actual": "生活"
+      },
+      {
+        "text": "宿舍插排",
+        "expected": "工具",
+        "actual": "工具"
+      },
+      {
+        "text": "淘宝 高数教材",
+        "expected": "工具",
+        "actual": null
+      },
+      {
+        "text": "京东 洗衣液",
+        "expected": "生活",
+        "actual": null
+      },
+      {
+        "text": "拼多多 桌游",
+        "expected": "娱乐",
+        "actual": null
+      },
+      {
+        "text": "网购 教材",
+        "expected": "工具",
+        "actual": null
+      },
+      {
+        "text": "淘宝",
+        "expected": null,
+        "actual": null
+      },
+      {
+        "text": "京东 耳机",
+        "expected": null,
+        "actual": null
+      },
+      {
+        "text": "午饭+电影",
+        "expected": null,
+        "actual": null
+      },
+      {
+        "text": "给室友转账",
+        "expected": null,
+        "actual": null
+      },
+      {
+        "text": "咖啡 小组讨论",
+        "expected": null,
+        "actual": null
+      },
+      {
+        "text": "咖啡 周末聊天",
+        "expected": null,
+        "actual": null
+      },
+      {
+        "text": "宿舍超市 插排",
+        "expected": null,
+        "actual": null
+      },
+      {
+        "text": "校园卡充值",
+        "expected": "生活",
+        "actual": "生活"
+      },
+      {
+        "text": "复印讲义",
+        "expected": "工具",
+        "actual": "工具"
+      },
+      {
+        "text": "咖啡店 打印",
+        "expected": null,
+        "actual": null
+      },
+      {
+        "text": "书",
+        "expected": null,
+        "actual": null
+      },
+      {
+        "text": "未知商户",
+        "expected": null,
+        "actual": null
+      }
+    ],
+    "exact_agreement": 20,
+    "total": 24,
+    "wrong_decisions": 0,
+    "resolved_clear_cases": 8,
+    "clear_cases": 12
+  },
+  "holdout": {
+    "cases": [
+      {
+        "text": "淘宝 课本",
+        "expected": "工具",
+        "actual": null
+      },
+      {
+        "text": "京东 牙膏",
+        "expected": "生活",
+        "actual": null
+      },
+      {
+        "text": "拼多多 小说",
+        "expected": "娱乐",
+        "actual": null
+      },
+      {
+        "text": "网购 硬盘",
+        "expected": "工具",
+        "actual": null
+      },
+      {
+        "text": "淘宝 礼物",
+        "expected": null,
+        "actual": null
+      },
+      {
+        "text": "京东 耳机",
+        "expected": null,
+        "actual": null
+      },
+      {
+        "text": "拼多多",
+        "expected": null,
+        "actual": null
+      },
+      {
+        "text": "网购",
+        "expected": null,
+        "actual": null
+      },
+      {
+        "text": "淘宝 教材和电影票",
+        "expected": null,
+        "actual": null
+      },
+      {
+        "text": "图书馆复印讲义",
+        "expected": "工具",
+        "actual": null
+      },
+      {
+        "text": "宿舍电费",
+        "expected": "生活",
+        "actual": "生活"
+      },
+      {
+        "text": "咖啡约会",
+        "expected": null,
+        "actual": null
+      }
+    ],
+    "exact_agreement": 7,
+    "total": 12,
+    "wrong_decisions": 0,
+    "resolved_clear_cases": 1,
+    "clear_cases": 6
+  },
+  "learning": {
+    "cold_coffee_abstains": true,
+    "correction_updates_older_matching_record": true,
+    "other_purpose_still_abstains": true,
+    "same_merchant_two_purposes": true,
+    "merchant_alone_not_guessed": true,
+    "reset_retracts_learning": true,
+    "undo_reset_restores_learning": true,
+    "undo_correction_retracts_learning": true,
+    "delete_retracts_learning": true,
+    "restore_relearns": true
+  }
+}
