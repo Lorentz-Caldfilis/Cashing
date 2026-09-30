@@ -384,6 +384,10 @@ class RecordRow(QWidget):
         category_layout.setContentsMargins(0, 0, CARET_ROOM, 0)
         category_layout.setSpacing(6)
         category_layout.addStretch()
+        self.category_origin = QLabel()
+        self.category_origin.setFont(theme.font(11))
+        self.category_origin.setStyleSheet(f"color: {theme.TEXT_3};")
+        category_layout.addWidget(self.category_origin)
         self.category_dot = QLabel()
         self.category_dot.setFixedSize(6, 6)
         category_layout.addWidget(self.category_dot, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -411,14 +415,16 @@ class RecordRow(QWidget):
         self.description.setText(record["description"])
         category = record["category"]
         known = category in CATEGORIES
-        self.category_name.setText(category if known else "")
+        self.category_name.setText(category if known else UNKNOWN_LABEL)
+        self.category_origin.setText("自选" if record.get("category_by_user") else "自动")
         self.category_dot.setStyleSheet(
             f"background: {theme.CATEGORY_COLORS[category]}; border-radius: 3px;" if known else "background: transparent;")
         self.category_dot.setVisible(known)
         self.category.setToolTip("你指定的分类，会用于本机学习；可在编辑中恢复自动判断。"
                                  if record.get("category_by_user") else
                                  "本机自动判断，结合你的历史纠正；点击可修改。")
-        self.setAccessibleName(f"{record['datetime']} {format_amount(record['amount_cents'])} {record['description']}")
+        self.setAccessibleName(f"{record['datetime']} {format_amount(record['amount_cents'])} {record['description']} "
+                               f"{self.category_origin.text()} {category or UNKNOWN_LABEL}")
 
     # ---- editors ----------------------------------------------------------
     def _build_editors(self):
@@ -498,6 +504,13 @@ class RecordRow(QWidget):
         if fmt == TIME_FULL:
             self.time_edit.setDateRange(QDate(1900, 1, 1), QDate(9999, 12, 31))
 
+    @staticmethod
+    def _category_index(record):
+        if not record.get("category_by_user"):
+            return len(CATEGORIES) + 1
+        category = record["category"]
+        return CATEGORIES.index(category) if category in CATEGORIES else len(CATEGORIES)
+
     def _load_editors(self):
         record = self.record
         for editor in (self.time_edit, self.amount_edit, self.description_edit, self.category_box):
@@ -508,8 +521,7 @@ class RecordRow(QWidget):
         self.time_edit.setDateTime(QDateTime.fromString(record["datetime"], "yyyy-MM-dd HH:mm"))
         if not self.time_edit.hasFocus():
             self._set_time_format(TIME_SHORT)
-        category = record["category"]
-        self.category_box.setCurrentIndex(CATEGORIES.index(category) if category in CATEGORIES else len(CATEGORIES))
+        self.category_box.setCurrentIndex(self._category_index(record))
         for editor in (self.time_edit, self.amount_edit, self.description_edit, self.category_box):
             editor.blockSignals(False)
 
@@ -621,8 +633,7 @@ class RecordRow(QWidget):
             # A description edit may change the derived category. Synchronize the
             # display without treating that automatic change as personal evidence.
             blocked = self.category_box.blockSignals(True)
-            category = new["category"]
-            self.category_box.setCurrentIndex(CATEGORIES.index(category) if category in CATEGORIES else len(CATEGORIES))
+            self.category_box.setCurrentIndex(self._category_index(new))
             self.category_box.blockSignals(blocked)
         if self.editing:  # keep the labels hidden while editing
             for label in (self.time, self.amount, self.description, self.category):

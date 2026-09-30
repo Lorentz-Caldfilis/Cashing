@@ -171,3 +171,16 @@ def test_named_navigation_is_keyboard_accessible_and_selected(window, qtbot):
     settled(qtbot, window)
     assert window.current_index() == REVIEW
     assert button.isChecked() and not window.navigation.buttons[0].isChecked()
+
+
+def test_tab_never_enters_the_clipped_inactive_space(window, qtbot):
+    from PySide6.QtWidgets import QApplication
+    for index in (CAPTURE, REVIEW):
+        window.switch_to(index, animate=False)
+        inactive = window.spaces.page(1 - index)
+        for key in (Qt.Key.Key_Tab, Qt.Key.Key_Backtab):
+            for _ in range(25):
+                focus = QApplication.focusWidget()
+                qtbot.keyClick(focus or window, key)
+                focus = QApplication.focusWidget()
+                assert focus is not inactive and not inactive.isAncestorOf(focus)

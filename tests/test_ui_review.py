@@ -102,7 +102,7 @@ def test_unknown_amounts_count_in_the_total_but_never_as_a_fourth_category(windo
     assert [cents for _, cents in page.summary.donut.segments] == [800, 1200]
     rows = page.rows()
     assert rows[0].category_name.text() == "生活" and not rows[0].category_dot.isHidden()
-    assert rows[1].category_name.text() == "" and rows[1].category_dot.isHidden()
+    assert rows[1].category_name.text() == "暂未判断" and rows[1].category_dot.isHidden()
 
 
 def test_no_ring_without_a_classified_proportion(window, database):
@@ -306,6 +306,7 @@ def test_explicit_selection_can_confirm_the_current_automatic_category(window, d
     september(window.review)
     row = window.review.history.row_for(record["id"])
     window.review._row_clicked(row, "category")
+    row.category_box.setCurrentIndex(0)
     row.category_box.activated.emit(0)
     assert database.get_record(record["id"])["category_by_user"] == 1
     window.toast._run_undo()
@@ -376,12 +377,14 @@ def test_undo_to_automatic_origin_allows_another_explicit_confirmation(window, d
     september(window.review)
     row = window.review.history.row_for(record["id"])
     window.review._row_clicked(row, "category")
+    row.category_box.setCurrentIndex(0)
     row.category_box.activated.emit(0)
     assert database.get_record(record["id"])["category_by_user"] == 1
     window.toast._run_undo()
     row = window.review.history.row_for(record["id"])
     assert row.record["category_by_user"] == database.get_record(record["id"])["category_by_user"] == 0
     window.review._row_clicked(row, "category")
+    row.category_box.setCurrentIndex(0)
     row.category_box.activated.emit(0)
     assert database.get_record(record["id"])["category_by_user"] == 1
 
@@ -400,4 +403,26 @@ def test_blocked_edit_undo_can_be_retried_after_cancelling_invalid_input(window,
     window.review.cancel_edit()
     window.toast._run_undo()
     assert database.get_record(record["id"])["category_by_user"] == 0
+    assert database.user_labels() == []
+
+
+def test_empty_month_has_a_direct_capture_action(window, qtbot):
+    window.switch_to(REVIEW, animate=False)
+    assert window.review.summary.empty_action.isVisible()
+    qtbot.mouseClick(window.review.summary.empty_action, Qt.MouseButton.LeftButton)
+    assert window.current_index() == 0
+    assert window.capture.amount.hasFocus()
+
+
+def test_origin_and_unknown_are_visible_without_hover_and_opening_does_not_teach(window, database):
+    record = window.ledger.create(1800, datetime(2026, 9, 30, 12, 0), "咖啡")
+    window.switch_to(REVIEW, animate=False)
+    september(window.review)
+    row = window.review.history.row_for(record["id"])
+    assert row.category_origin.text() == "自动"
+    assert row.category_name.text() == "暂未判断"
+    assert "自动 暂未判断" in row.accessibleName()
+    window.review._row_clicked(row, "category")
+    assert row.category_box.currentText() == "自动判断"
+    assert window.review.prepare_leave()
     assert database.user_labels() == []

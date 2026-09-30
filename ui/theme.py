@@ -117,7 +117,7 @@ QPushButton#time:hover {{ background: {HOVER}; color: {TEXT_2}; }}
 QPushButton#time:pressed {{ background: {PRESSED}; color: {TEXT_2}; }}
 QPushButton#time:focus {{ border-color: {FOCUS_RING}; color: {TEXT_2}; }}
 QLabel#error {{ color: {DANGER}; font-size: 13px; }}
-QLabel#errorDetail {{ color: {TEXT_3}; font-size: 12px; }}
+QPlainTextEdit#errorDetail {{ color: {TEXT_3}; background: transparent; border: none; font-size: 12px; }}
 
 /* Review header. The arrows, search, close and ⋮ are one painted family (ui/controls.py).
    Text buttons follow the same three states: hover, a darker press, a keyboard-only ring.

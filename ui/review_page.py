@@ -217,12 +217,18 @@ class SummaryBlock(QWidget):
         self.empty.setStyleSheet(f"color: {theme.TEXT_3};")
         self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.empty)
+        self.empty_action = QPushButton("记一笔")
+        self.empty_action.setObjectName("quiet")
+        self.empty_action.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.empty_action.setAccessibleName("记一笔，进入金额输入")
+        layout.addWidget(self.empty_action, 0, Qt.AlignmentFlag.AlignHCenter)
 
     def set_totals(self, totals):
         self.total.setText(format_cents(totals["total"]))
         empty = totals["total"] == 0
         self.structure.setVisible(not empty)
         self.empty.setVisible(empty)
+        self.empty_action.setVisible(empty)
         for name, line in self.lines.items():
             line.set_cents(totals[name])
         unknown = totals["unknown"]
@@ -236,6 +242,7 @@ class SummaryBlock(QWidget):
         self.total.setText("—")
         self.structure.hide()
         self.empty.hide()
+        self.empty_action.hide()
 
 
 class DayGroup(QWidget):
@@ -416,6 +423,8 @@ class SearchField(QLineEdit):
 
 
 class ReviewPage(QWidget):
+    capture_requested = Signal()
+
     def __init__(self, ledger, notify, parent=None):
         super().__init__(parent)
         self.setObjectName("space")
@@ -533,6 +542,7 @@ class ReviewPage(QWidget):
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(0)
         self.summary = SummaryBlock()
+        self.summary.empty_action.clicked.connect(self.capture_requested)
         column.addWidget(self.summary)
         self.failure = QLabel()
         self.failure.setObjectName("error")

@@ -11,7 +11,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QRegularExpressionValidator, QFontMetrics, QPainter, QColor, QPen, QKeySequence
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QFrame,
-    QDateTimeEdit, QSizePolicy, QApplication,
+    QDateTimeEdit, QSizePolicy, QApplication, QScrollArea, QPlainTextEdit,
 )
 from database import DatabaseError
 from domain import parse_amount, format_amount, cents_to_input, describe_time, MAX_DESCRIPTION
@@ -357,8 +357,19 @@ class CapturePage(QWidget):
         self.ledger = ledger
         self.notify = notify
         self._when = None  # None = automatic (now)
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(48, 24, 48, 64)
+        frame = QVBoxLayout(self)
+        frame.setContentsMargins(0, 76, 0, 64)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        content = QWidget()
+        content.setObjectName("space")
+        self.scroll.setWidget(content)
+        frame.addWidget(self.scroll)
+        outer = QVBoxLayout(content)
+        outer.setContentsMargins(48, 12, 48, 12)
         outer.setSpacing(0)
         outer.addStretch(ABOVE)
         column = QWidget()
@@ -459,11 +470,15 @@ class CapturePage(QWidget):
         self.save_error.setWordWrap(True)
         self.save_error.setTextFormat(Qt.TextFormat.PlainText)
         body.addWidget(self.save_error)
-        self.save_error_detail = QLabel()
+        self.save_error_detail = QPlainTextEdit()
+        self.save_error_detail.setReadOnly(True)
+        self.save_error_detail.setFixedHeight(72)
+        self.save_error_detail.setFrameShape(QFrame.Shape.NoFrame)
+        self.save_error_detail.setAccessibleName("保存错误详情，可选择并复制")
+        self.save_error_detail.hide()
+        self.save_error_detail.textChanged.connect(
+            lambda: self.save_error_detail.setVisible(bool(self.save_error_detail.toPlainText())))
         self.save_error_detail.setObjectName("errorDetail")
-        self.save_error_detail.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.save_error_detail.setWordWrap(True)
-        self.save_error_detail.setTextFormat(Qt.TextFormat.PlainText)
         body.addWidget(self.save_error_detail)
         body.addSpacing(12)
 
@@ -494,6 +509,12 @@ class CapturePage(QWidget):
         self.description.setProperty("empty", "true" if not text else "false")
         self.description.style().unpolish(self.description)
         self.description.style().polish(self.description)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        compact = self.height() < 560
+        self.heading.setVisible(not compact)
+        self.keyboard_hint.setVisible(not compact)
 
     # ---- state ------------------------------------------------------------
     def current_time(self) -> datetime:
@@ -616,7 +637,8 @@ class CapturePage(QWidget):
             stored = self.ledger.create(cents, when, description)
         except (ValueError, DatabaseError) as exc:
             self.save_error.setText("无法保存，这笔记录尚未写入。")
-            self.save_error_detail.setText(str(exc))
+            self.save_error_detail.setPlainText(str(exc))
+            QTimer.singleShot(0, lambda: self.scroll.ensureWidgetVisible(self.save_error_detail, 0, 8))
             return
         # Only after the database confirmed the write.
         self._reset_inputs()

@@ -126,7 +126,7 @@ def test_write_failure_keeps_every_input(window, qtbot, database, monkeypatch):
     assert capture.amount.text() == "28.50" and capture.description.text() == "晚饭"
     assert capture.current_time() == datetime(2026, 9, 19, 22, 15)
     assert capture.save_error.text() == "无法保存，这笔记录尚未写入。"
-    assert "磁盘不可写" in capture.save_error_detail.text()
+    assert "磁盘不可写" in capture.save_error_detail.toPlainText()
     assert not window.toast.isVisible()
     assert stored(database) == []
     capture.description.setText("晚饭 2")
@@ -321,3 +321,23 @@ def test_paste_expense_is_reviewable_and_never_overwrites_description(window, qt
     assert capture.description.text() == "食堂午饭"
     assert capture.amount.text() == "28.50"
     assert "说明已有内容" in capture.amount_error.text()
+
+
+def test_long_storage_error_remains_readable_in_small_window(window, qtbot, monkeypatch):
+    window.resize(680, 440)
+    capture = window.capture
+    detail = "合成磁盘错误，请检查目录权限。" * 100
+    def fail(*args, **kwargs):
+        raise DatabaseError(detail)
+    monkeypatch.setattr(window.ledger, "create", fail)
+    capture.amount.setText("18.50")
+    capture.description.setText("合成午饭")
+    capture.record()
+    qtbot.wait(40)
+    assert window.size().width() == 680 and window.size().height() == 440
+    assert capture.amount.height() >= capture.amount.sizeHint().height()
+    assert capture.save_error_detail.toPlainText() == detail
+    assert capture.save_error_detail.verticalScrollBar().maximum() > 0
+    top = capture.save_error_detail.mapTo(capture.scroll.viewport(), capture.save_error_detail.rect().topLeft()).y()
+    assert 0 <= top < capture.scroll.viewport().height()
+    assert capture.amount.text() == "18.50" and capture.description.text() == "合成午饭"

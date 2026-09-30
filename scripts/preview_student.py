@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from PySide6.QtCore import QTimer, QLocale
 from PySide6.QtWidgets import QApplication
-from database import Database
+from database import Database, DatabaseError
 from ui.main_window import MainWindow, REVIEW
 from ui import motion
 
@@ -41,6 +41,9 @@ def main():
         window.capture.amount.setText("18.50")
         window.capture.description.setText("食堂午饭")
         window.capture.description.setFocus()
+        QTimer.singleShot(100, capture_frame)
+
+    def capture_frame():
         window.grab().save(str(directory / "capture.png"))
         window.switch_to(REVIEW, animate=False)
         window.review.year, window.review.month = 2026, 9
@@ -61,6 +64,26 @@ def main():
 
     def compact():
         window.grab().save(str(directory / "compact.png"))
+        window.resize(1000, 760)
+        window.review.change_month(-1)
+        QTimer.singleShot(100, empty)
+
+    def empty():
+        window.grab().save(str(directory / "empty.png"))
+        window.switch_to(0, animate=False)
+        window.resize(680, 440)
+        def fail(*args, **kwargs):
+            raise DatabaseError("合成磁盘错误，请检查目录权限。" * 100)
+        window.ledger.create = fail
+        window.capture.record()
+        QTimer.singleShot(100, error)
+
+    def error():
+        window.capture.scroll.ensureWidgetVisible(window.capture.save_error_detail)
+        QTimer.singleShot(100, finish)
+
+    def finish():
+        window.grab().save(str(directory / "long-error.png"))
         window.close()
         app.quit()
 

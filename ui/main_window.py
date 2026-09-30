@@ -1,7 +1,7 @@
 """Cashing main window: two full-window spaces, Capture ⇄ Review, and window-level overlays."""
 from pathlib import Path
 from datetime import datetime
-from PySide6.QtCore import QPoint, QUrl, QTimer
+from PySide6.QtCore import QPoint, QUrl, QTimer, Qt
 from PySide6.QtGui import QShortcut, QKeySequence, QDesktopServices
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QToolButton, QMenu, QMessageBox, QFileDialog, QLabel
 from draft import DraftStore
@@ -42,7 +42,7 @@ class MainWindow(QMainWindow):
         self.ledger = Ledger(database)
         self.drafts = DraftStore(data_directory) if data_directory else None
         screen = QApplication.primaryScreen().availableGeometry()
-        self.setMinimumSize(min(640, max(320, screen.width() - 40)), min(480, max(240, screen.height() - 80)))
+        self.setMinimumSize(min(640, max(320, screen.width() - 40)), min(440, max(240, screen.height() - 80)))
         self.resize(min(WINDOW_WIDTH, screen.width() - 40), min(WINDOW_HEIGHT, screen.height() - 60))
         QApplication.instance().setFont(theme.font(theme.BASE_PX))
         self.setStyleSheet(theme.STYLE)
@@ -54,6 +54,7 @@ class MainWindow(QMainWindow):
         self.spaces = SpaceSwitcher()
         self.capture = CapturePage(self.ledger, self.notify)
         self.review = ReviewPage(self.ledger, self.notify)
+        self.review.capture_requested.connect(lambda: self.switch_to(CAPTURE))
         self.spaces.add_page(self.capture)
         self.spaces.add_page(self.review)
         layout.addWidget(self.spaces)
@@ -109,6 +110,21 @@ class MainWindow(QMainWindow):
     # ---- spaces ----------------------------------------------------------
     def current_index(self):
         return self.spaces.current_index()
+
+    def focusNextPrevChild(self, next):
+        """Clipped sliding pages remain visible to Qt; keep Tab in the active space."""
+        current = QApplication.focusWidget() or self
+        candidate = current
+        inactive = self.spaces.page(1 - self.current_index())
+        while True:
+            candidate = candidate.nextInFocusChain() if next else candidate.previousInFocusChain()
+            if candidate is current:
+                return False
+            if (candidate.window() is self and candidate.isVisible() and candidate.isEnabled()
+                    and candidate.focusPolicy() & Qt.FocusPolicy.TabFocus
+                    and candidate is not inactive and not inactive.isAncestorOf(candidate)):
+                candidate.setFocus(Qt.FocusReason.TabFocusReason if next else Qt.FocusReason.BacktabFocusReason)
+                return True
 
     def move_by(self, direction):
         self.switch_to(self.spaces.current_index() + direction)
