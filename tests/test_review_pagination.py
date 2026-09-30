@@ -60,3 +60,46 @@ def test_search_context_resets_page_and_delete_clamps_last_page(page):
     assert not page.rows() and page.pager.isHidden()
     page.exit_search()
     assert page.summary.total.text()=='120.00'
+
+
+def test_search_description_edit_updates_membership_before_next_page(page):
+    page.enter_search(); page.search_field.setText('午饭'); page._search_timer.stop(); page._run_search()
+    row=page.rows()[0]; removed=row.record['id']
+    page._row_clicked(row,'description'); row.description_edit.setText('打印'); row.end_edit()
+    assert page._result_count==124
+    seen=[]
+    for _ in range(3):
+        seen += [r.record['id'] for r in page.rows()]
+        page._change_result_page(1)
+    assert len(seen)==len(set(seen))==124
+    assert removed not in seen
+    assert set(seen)==set(range(1,126))-{removed}
+
+
+@pytest.mark.parametrize('finish', ['cancel','commit'])
+def test_animated_delete_defers_refill_until_other_edit_finishes(page,qtbot,monkeypatch,finish):
+    monkeypatch.setattr(motion,'ENABLED',True)
+    deleted=page.rows()[0]
+    page._delete_row(deleted)
+    other=page.rows()[0]
+    page._row_clicked(other,'amount'); other.amount_edit.setText('unfinished')
+    qtbot.waitUntil(lambda: page._rebuild_after_edit, timeout=2000)
+    assert page.editing_row is other and other.amount_edit.text()=='unfinished'
+    assert other.editing and page._rebuild_after_edit
+    if finish=='cancel': other.cancel_edit()
+    else:
+        other.amount_edit.setText('2'); other.end_edit()
+    assert page.editing_row is None and page._result_count==124 and len(page.rows())==60
+    assert page.summary.total.text()==('124.00' if finish=='cancel' else '125.00')
+
+
+def test_stale_delete_callback_cannot_refresh_a_new_query(page,monkeypatch):
+    callbacks=[]
+    monkeypatch.setattr(motion,'collapse',lambda widget,duration,done:callbacks.append(done))
+    page._delete_row(page.rows()[0])
+    page.enter_search(); page.search_field.setText('午饭1'); page._search_timer.stop(); page._run_search()
+    other=page.rows()[0]; page._row_clicked(other,'amount'); other.amount_edit.setText('unfinished')
+    generation=page._view_generation
+    callbacks[0]()
+    assert page._view_generation==generation and page.editing_row is other
+    assert other.amount_edit.text()=='unfinished'

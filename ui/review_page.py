@@ -437,6 +437,7 @@ class ReviewPage(QWidget):
         self._page_index = 0
         self._page_context = None
         self._result_count = 0
+        self._view_generation = 0
         self.editing_row = None
         self._rebuild_after_edit = False
         self._guard = ClickOutsideGuard(self)
@@ -686,6 +687,7 @@ class ReviewPage(QWidget):
 
     # ---- data -------------------------------------------------------------------
     def refresh(self, *, keep_scroll=False):
+        self._view_generation += 1
         if self.searching:
             self._run_search(keep_scroll=keep_scroll)
             return
@@ -746,6 +748,7 @@ class ReviewPage(QWidget):
         if not self.leave():
             return
         self.searching = True
+        self._view_generation += 1
         self._saved_scroll = self.scroll.verticalScrollBar().value()
         self._turn_header(1)
         self.search_button.hide()
@@ -780,6 +783,7 @@ class ReviewPage(QWidget):
         motion.fade_in(self.scroll.viewport(), 0.55, motion.SEARCH)
 
     def _run_search(self, *, keep_scroll=False):
+        self._view_generation += 1
         if not self.searching:
             return
         position = self.scroll.verticalScrollBar().value() if keep_scroll else 0
@@ -838,7 +842,11 @@ class ReviewPage(QWidget):
     def _row_clicked(self, row, cell):
         if row is self.editing_row:
             return
+        record_id = row.record["id"]
         if not self.leave():
+            return
+        row = self.history.row_for(record_id)
+        if row is None:
             return
         self.editing_row = row
         row.begin_edit(cell)
@@ -857,7 +865,7 @@ class ReviewPage(QWidget):
             except DatabaseError:
                 return
             self.summary.set_totals(totals)
-        if old["datetime"] != new["datetime"]:
+        if old["datetime"] != new["datetime"] or (self.searching and old["description"] != new["description"]):
             self._rebuild_after_edit = True  # order or month membership changed; re-sort once the edit ends
 
     def _undo_edit(self, receipt):
@@ -888,10 +896,16 @@ class ReviewPage(QWidget):
         if snapshot["description"]:
             text += f" · {snapshot['description']}"
         self.notify(text, undo=lambda: self._restore(snapshot))
+        generation = self._view_generation
         def finished_delete():
+            if generation != self._view_generation:
+                return  # old page/query already replaced and owns its own row cleanup
             self.history.forget(row)
             if self._result_count > self.PAGE_SIZE:
-                self.refresh(keep_scroll=True)
+                if self.editing_row is not None:
+                    self._rebuild_after_edit = True
+                else:
+                    self.refresh(keep_scroll=True)
         motion.collapse(self.history.start_leaving(row), motion.RECORD, finished_delete)
 
     def _refresh_totals(self):
