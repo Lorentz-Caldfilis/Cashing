@@ -19,6 +19,7 @@ MAX_PHRASE = 12       # longer labelled phrases only match themselves exactly (b
 CACHE_LIMIT = 4096
 
 _TOKEN = re.compile(r"[㐀-䶿一-鿿豈-﫿]|[^\W_㐀-䶿一-鿿豈-﫿]+")
+_ITEM_SEPARATOR = re.compile(r"[+、,;|/\n\r]+")
 _UNDECIDED = "?"      # evidence exists but does not settle it (conflict, ambiguity, the person's 暂未判断)
 
 
@@ -109,13 +110,17 @@ class Classifier:
     def explain(self, description):
         """Immutable, local explanation; offsets index normalized tokens."""
         phrase = tokens(description)
-        return self._resolve(phrase) if phrase else Decision(None, 'empty')
+        normalized = unicodedata.normalize("NFKC", description or "").lower()
+        segments = tuple(part for piece in _ITEM_SEPARATOR.split(normalized) if (part := tokens(piece)))
+        boundaries = segments if len(segments) > 1 else ()
+        return self._resolve(phrase, boundaries=boundaries) if phrase else Decision(None, 'empty')
 
-    def _resolve(self, phrase):
-        if phrase in self._cache:
-            return self._cache[phrase]
+    def _resolve(self, phrase, *, boundaries=()):
+        key = (phrase, boundaries)
+        if key in self._cache:
+            return self._cache[key]
         if phrase in self._phrases:
-            prior = self._builtin(phrase, personal=False)
+            prior = self._builtin(phrase, personal=False, boundaries=boundaries)
             votes = Counter()
             labels = sorted(self._phrases[phrase].values(), key=lambda item: item[0], reverse=True)
             for age, (_, category) in enumerate(labels):
@@ -132,13 +137,29 @@ class Classifier:
             evidence = (Evidence(0, len(phrase), ''.join(phrase), 'personal', category, 'personal'),)
             result = Decision(category, reason, evidence + prior.evidence, len(labels))
         else:
-            result = self._builtin(phrase, personal=True)
+            result = self._builtin(phrase, personal=True, boundaries=boundaries)
         if len(self._cache) >= CACHE_LIMIT:
             self._cache.clear()
-        self._cache[phrase] = result
+        self._cache[key] = result
         return result
 
-    def _builtin(self, phrase, *, personal):
+    def _builtin(self, phrase, *, personal, boundaries=()):
+        if boundaries:
+            # Legacy label keys still ignore punctuation. Only derived lexical evidence
+            # gains item boundaries; an explicit whole-description label remains valid.
+            decisions = [self._resolve(part) if personal else self._builtin(part, personal=False)
+                         for part in boundaries]
+            evidence, offset = [], 0
+            for index, (part, result) in enumerate(zip(boundaries, decisions)):
+                if index:
+                    evidence.append(Evidence(offset, offset, '|', 'item_boundary'))
+                evidence.extend(Evidence(e.start + offset, e.end + offset, e.text, e.kind,
+                                         e.category, e.strength) for e in result.evidence)
+                offset += len(part)
+            categories = {result.category for result in decisions}
+            category = next(iter(categories)) if len(categories) == 1 and None not in categories else None
+            reason = 'compatible_items' if category else 'unresolved_items'
+            return Decision(category, reason, tuple(evidence))
         items = list(self._spans(phrase, personal))
         resolved = []
         for item in items:

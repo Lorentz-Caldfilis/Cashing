@@ -132,3 +132,41 @@ def test_exact_purpose_reset_and_undo_leave_other_brand_purposes_untouched(datab
     ledger.undo_update(correction)
     assert database.user_labels() == []
     assert ledger.classifier().classify(a['description']) is None
+
+
+@pytest.mark.parametrize('separator', [' + ', '＋', '、', ',', '，', ';', '；', '/', '／', '|', '\n'])
+@pytest.mark.parametrize('first,second', [('牙线','教材'),('苹果','电脑'),('未知商品','电影票')])
+def test_item_boundaries_block_unknown_absorption_and_cross_item_senses(separator, first, second):
+    model = Classifier()
+    for text in (first+separator+second, second+separator+first):
+        assert model.classify(text) is None
+        assert any(e.kind == 'item_boundary' for e in model.explain(text).evidence)
+    assert model.classify('量子力学教材') == '工具'
+    assert model.classify('苹果电脑') == '工具'
+
+
+def test_boundary_cache_and_legacy_personal_keys_remain_compatible():
+    model = Classifier()
+    assert model.classify('苹果电脑') == '工具'
+    assert model.classify('苹果 + 电脑') is None
+    model.set_label(1, '苹果 + 电脑', '娱乐', 1)
+    assert model.classify('苹果 + 电脑') == '娱乐'
+    # Existing normalized labels ignored punctuation: preserve that established identity.
+    assert tokens('苹果 + 电脑') == tokens('苹果电脑')
+    assert model.classify('苹果电脑') == '工具'  # one exception against strong built-in prior
+    model.drop_label(1)
+    assert model.classify('苹果 + 电脑') is None
+
+
+def test_one_labelled_item_does_not_absorb_another_or_self_train(database):
+    from datetime import datetime
+    from ledger import Ledger
+    ledger = Ledger(database)
+    row = ledger.create(100, datetime(2026,9,30,12,0), '星云商店')
+    ledger.update(row, category='工具')
+    before = database.user_labels()
+    for text in ['星云商店＋牙线', '牙线、星云商店', '星云商店 + 教材']:
+        created = ledger.create(100, datetime(2026,9,30,12,0), text)
+        assert created['category'] == ('工具' if '教材' in text else None)
+        assert not created['category_by_user']
+        assert database.user_labels() == before
