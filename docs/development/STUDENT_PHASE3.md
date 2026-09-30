@@ -15,3 +15,15 @@ Windows runner 结果只能证明该 runner 的自动验收，不能替代真实
 用户明确纠正的完整商品说明仍可学习；10 条学习/撤回检查通过。分类相关 44 项测试通过。
 报告：[安全回退后的固定语料](evidence/phase3-20260930/classification-safe.json)。
 回退本修复会重引错误，不建议；未来必须先建立完整片段/未知片段证据模型，再重新评估覆盖。
+
+## 环境恢复与 Windows 验证入口
+
+17:50 UTC 恢复后确认原工作区及 Python 环境可读，工作区干净；`7fda6b5` 已在远端 feature 分支，
+远端 main 仍为 `ebd0c8b`。没有未保存改动；不把断开期间视为新增测试证据。
+
+新增 `.github/workflows/windows-candidate.yml`：PR 精确 head SHA、Windows Server 2022、
+Python 3.14.7、锁定依赖、完整测试、源码真实 Qt 进程、PyInstaller 构建、ZIP 解压后真实进程验证。
+Actions 引用完整提交哈希，凭据不保留到 checkout，仅申请读取 contents；保留 14 天的候选包与合成验收证据。
+无 tag/Release/部署步骤，不更改仓库设置。YAML 已在 Linux 解析；远端结果需另行记录，不能预判成功。
+现有打包许可收集仍需完善，因此 CI 产物仅用于审查验收，不代表可公开再分发。
+回退：revert 本次 workflow 提交即可移除自动检查，不影响账本或 schema。

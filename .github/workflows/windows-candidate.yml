@@ -1,0 +1,74 @@
+name: Windows candidate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      PYTHONUTF8: '1'
+      QT_API: pyside6
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14.7'
+          architecture: x64
+      - name: Install locked build environment
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\python.exe -m pip install -r requirements-lock.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
+          .\.venv\Scripts\python.exe -m pip check
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency check failed' }
+          New-Item -ItemType Directory -Path work -Force | Out-Null
+          git rev-parse HEAD | Out-File work/source-commit.txt -Encoding utf8
+          .\.venv\Scripts\python.exe -m pip freeze | Out-File work/installed.txt -Encoding utf8
+      - name: Tests and real Windows source GUI
+        shell: pwsh
+        run: |
+          .\.venv\Scripts\python.exe -m pytest -q -W error --basetemp work/pytest-ci --junitxml work/tests.xml
+          if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
+          .\.venv\Scripts\python.exe scripts/verify_release.py --phase source --label ci-source
+          if ($LASTEXITCODE -ne 0) { throw 'Source GUI verification failed' }
+      - name: Build and package private candidate
+        shell: pwsh
+        run: |
+          ./build.ps1
+          .\.venv\Scripts\python.exe scripts/package_release.py
+          if ($LASTEXITCODE -ne 0) { throw 'Packaging failed' }
+          Expand-Archive -LiteralPath release/Cashing-v1.1.0-windows.zip -DestinationPath work/extracted
+          .\.venv\Scripts\python.exe scripts/verify_release.py --phase frozen --install work/extracted/Cashing --label ci-extracted
+          if ($LASTEXITCODE -ne 0) { throw 'Extracted GUI verification failed' }
+      - name: Keep verification evidence and candidate
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: windows-candidate-${{ github.event.pull_request.head.sha || github.sha }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            work/source-commit.txt
+            work/installed.txt
+            work/tests.xml
+            work/ci-source/**/smoke-result.json
+            work/ci-source/**/verification.json
+            work/ci-source/**/*.png
+            work/ci-source/**/*.log
+            work/ci-extracted/**/smoke-result.json
+            work/ci-extracted/**/verification.json
+            work/ci-extracted/**/*.png
+            work/ci-extracted/**/*.log
+            release/*.zip
+            release/*.sha256
