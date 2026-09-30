@@ -3,8 +3,8 @@
 范围：当前工作树与本地完整、非 shallow 的可达 Git 历史。未改写历史、作者身份、许可或仓库可见性。
 使用 `scripts/audit_repository.py --output work/repository-audit.json` 只读扫描；输出位置和计数，不输出命中值。
 
-在 `debe879` 上扫描 418 个可达 blob：私钥头、GitHub token 形状、AWS key 形状、
-个人 home 路径、SQLite 文件头均未命中。当前跟踪文件名扫描未发现账本、草稿、日志、
+最终源码 `7435e66` 上扫描 431 个可达 blob：私钥头、GitHub token 形状、AWS key 形状、
+SQLite 文件头均未命中；home 路径模式命中一次，是审计脚本自身的正则表达式，已人工核对为误报。当前跟踪文件名扫描未发现账本、草稿、日志、
 .env、私钥或 credentials/secrets 文件。这个结果不等于不存在未知格式秘密。
 
 发现旧发行审计文档保留开发机器的项目目录示例；当前 README 已移除机器专属绝对路径，

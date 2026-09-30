@@ -4,9 +4,12 @@
 
 独立分支 `codex/student-edition-20260930`，基线 `ebd0c8b`，草稿 [PR #2](https://github.com/Lorentz-Caldfilis/Cashing/pull/2)。
 未修改 main、未发布新版、未改变许可证。新增原子草稿、单笔粘贴、可逆分类学习、备份和具名 PC 导航。
-最新第二阶段应用验证点 `73be09e`：Linux/offscreen 279 项测试通过；Linux X11 五次独立进程缩放/重启验收通过。
+第三阶段源码验证点 `7435e66`：Linux/offscreen 303 项测试通过。最终 Windows CI 对精确提交 `0623c05` 通过 303 项测试、源码和解压各 5 次 GUI、默认数据路径两次启动及 399 文件完整性检查；
+可下载候选与独立小型证据包见[第三阶段报告](development/STUDENT_PHASE3.md)。
+第二阶段 `73be09e` 的 Linux X11 五次独立进程缩放/重启结果保留为历史证据。
 两项独立源码审查问题已由作者实际复现并修复，4 条回归另在 X11 通过；这不等于审查方独立执行验收。
-[第二阶段报告](development/STUDENT_PHASE2.md)包含固定分类场景、来源显示和小窗口错误恢复。
+[第二阶段报告](development/STUDENT_PHASE2.md)包含来源显示和小窗口错误恢复。平台词中性化已保守撤回；
+当前固定 DEV 明确用途覆盖 8/12、holdout 1/6，两组错误决定均 0，10 条学习/撤回检查通过。
 完整证据与明确未测项见 [验收矩阵](development/STUDENT_VALIDATION.md)，回退见 [开发记录](development/STUDENT_EDITION.md)。
 本轮未重核历史 Release 资产；下面保留原来的 2026-09-27 发布快照，不作为本分支的发布证据。
 

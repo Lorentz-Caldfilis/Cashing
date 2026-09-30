@@ -68,3 +68,58 @@ Windows run [36756167296](https://github.com/Lorentz-Caldfilis/Cashing/actions/r
 完整 artifact 约 50 MB，超过本地文件工具 32 MiB 上限；连接器临时 URL 下载返回 HTTP 403。
 为让复核者容易取用截图/JSON，将小型 evidence 与候选 ZIP 分为两个 Actions artifacts；
 仅验证成功才保留候选包，失败时仍保留诊断证据。此调整不改变应用代码或任何权限。
+
+## 最终阶段交付（仅候选，不发布）
+
+Windows 精确验证提交：`0623c0517295965bdeed35b7fc8602b0149ac692`。
+[成功 run 36756735665](https://github.com/Lorentz-Caldfilis/Cashing/actions/runs/36756735665)。
+
+| 检查 | 实际结果 | 证据 |
+|---|---|---|
+| Linux Python 3.12.14 完整回归 | 303 passed / 13.58s，源码 7435e66 | evidence/phase3-20260930/linux-tests.xml |
+| Windows Server 2022 / Python 3.14.7 | 303 passed / 18.11s，源码 0623c05 | windows/tests.xml |
+| Windows 源码 Qt 进程 | 5 次通过，100/125/150/200% 与重启 | windows/ci-source/verification.json |
+| 解压 EXE Qt 进程 | 5 次通过，同样缩放/重启 | windows/ci-extracted/verification.json |
+| 默认数据位置与正常启动 | 两次通过、合成账本保留 | 同上 default_mode |
+| 安装目录安全 | 399 个文件，运行前后集合与内容不变 | 同上 manifest_files / install_unchanged |
+| 依赖安装 | requirements-lock 安装、pip check 通过，18 项 freeze | windows/installed.txt |
+| 实际 Windows 截图 | 查看了解压版 Review、空态及 200% Capture | windows/windows-*.png |
+| 分类固定语料 | DEV 8/12、holdout 1/6 明确用途；错误决定均 0；10 条学习/撤回通过 | classification-final.json |
+| 有限历史模式审计 | 431 blob；无密钥/SQLite 头命中；1 处脚本正则误报 | repository-audit.json |
+
+表内短证据路径以 `docs/development/evidence/phase3-20260930/` 为根。
+200% 截图在 runner 的有限屏幕高度下进入可滚动紧凑模式；不能据此宣称真实跨屏或设备体验已验收。
+
+[小型证据 artifact](https://github.com/Lorentz-Caldfilis/Cashing/actions/runs/36756735665/artifacts/11117720434)
+535,795 bytes，已下载并本地核对 SHA-256：
+`fc0210418a84c9e00ee1e7715eda49d99129a422784b3ac30d8e59d92ec59a6c`。
+核对其中 source-commit、JUnit、两份 verification.json 与截图；归档文本在仓库中统一 LF，PNG 保持原字节。
+原始 artifact 包含合成日志；仓库只保留 JSON、JUnit、依赖清单和选定截图，不提交数据库或日志。
+
+[候选二进制 artifact](https://github.com/Lorentz-Caldfilis/Cashing/actions/runs/36756735665/artifacts/11117795401)
+内含 `Cashing-candidate-0623c0517295-windows.zip` 及其摘要。
+内层候选 ZIP SHA-256（由 Windows 打包脚本计算，未在本地重新下载大包计算）：
+`aab9359d06b3d0a3566b49988a7592793023e48405b436b5bd7172b92a5f921b`。
+外层 Actions artifact 摘要与内层 ZIP 不同，详见 windows-run.json，勿混用。
+两个 artifacts 到期时间约 2026-10-14；需要复核时应及时下载。
+
+[用户指南](../USER_GUIDE.md)、[构建与解压验收](../WINDOWS_CANDIDATE.md)、
+[依赖/资源来源](../THIRD_PARTY.md)、[资料审计](REPOSITORY_AUDIT.md)及
+[尚未执行的人工验收表](../MANUAL_ACCEPTANCE.md)已补齐。
+新增 issue / PR 模板，不改变许可；源代码公开决定、Qt/MS 再分发义务复核和人工设备验收仍是剩余门槛。
+
+本交付后仅追加文档与证据，不更改已验证的应用、测试或构建代码。
+文档归档提交使用 `[skip ci]` 避免相同源码再次完整构建；验证对象明确固定为上述 0623c05，
+不能声称后续文档提交已经生成另一个新包。草稿 PR 保持，不合并、不发 Release、不改 main。
+
+## 第三阶段回退索引
+
+- `7fda6b5`：平台词安全回退；撤销它会重新引入误判，不建议。
+- `dcb7107`：Windows CI 入口；可 revert 移除自动化，不影响应用数据。
+- `36f04b1`：Windows 备份 fsync 修复；撤销会恢复 Windows 失败，仅用于定位。
+- `debe879`：可追溯打包、许可证来源和用户指南；可 revert，先回退依赖它的后续构建修改。
+- `56f8ec5`：构建来源与完整安装 manifest 验证；可独立 revert，无 schema 变化。
+- `7435e66`：贡献模板和有限隐私审计；仅工具/文档，可 revert。
+- `0623c05`：分离小型证据 artifact；可 revert 恢复合并 artifact。
+
+多批回退按从新到旧，保留已经生成的备份；不 reset main 或强推。所有者尚未授权公开发布。
