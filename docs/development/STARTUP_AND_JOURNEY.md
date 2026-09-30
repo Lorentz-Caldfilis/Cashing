@@ -63,3 +63,11 @@ Linux X11 设置 DISPLAY 与 QT_QPA_PLATFORM=xcb；Windows 不设置 xcb。
 不为填满剩余时限增加功能；无需继续追已知分类小集分数。
 
 最终 Linux：406 tests / 36.32s；独占 X11 的 100%、重启、125%、150%、200% 共五个 GUI 进程全部通过。
+
+### Windows 首轮失败与烟测诊断改进
+
+[a0d6b95 run 36764608780](https://github.com/Lorentz-Caldfilis/Cashing/actions/runs/36764608780)
+为 406 tests / 71.39s 通过，原生 GUI 第一次 Alt+Right 检查失败，未进入打包。
+旧烟测固定 settle 320ms 后同时判断 index/animation，没有记录哪一项失败，不能据此断言产品或计时根因。
+保留原始失败 JSON/JUnit。烟测改为最多 2s 等待实际目标空间且动画结束，并记录 elapsed/index/animating；
+没有关闭动画、跳过断言或自动重试来掩盖失败。后续 Windows 结果另记。

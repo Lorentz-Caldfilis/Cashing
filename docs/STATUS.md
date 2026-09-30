@@ -2,16 +2,20 @@
 
 ## 2026-09-30 开发候选
 
-独立分支 `codex/student-edition-20260930`，基线 `ebd0c8b`，草稿 [PR #2](https://github.com/Lorentz-Caldfilis/Cashing/pull/2)。
-未修改 main、未发布新版、未改变许可证。新增原子草稿、单笔粘贴、可逆分类学习、备份和具名 PC 导航。
-第三阶段源码验证点 `7435e66`：Linux/offscreen 303 项测试通过。最终 Windows CI 对精确提交 `0623c05` 通过 303 项测试、源码和解压各 5 次 GUI、默认数据路径两次启动及 399 文件完整性检查；
-可下载候选与独立小型证据包见[第三阶段报告](development/STUDENT_PHASE3.md)。
-第二阶段 `73be09e` 的 Linux X11 五次独立进程缩放/重启结果保留为历史证据。
-两项独立源码审查问题已由作者实际复现并修复，4 条回归另在 X11 通过；这不等于审查方独立执行验收。
-[第二阶段报告](development/STUDENT_PHASE2.md)包含来源显示和小窗口错误恢复。平台词中性化已保守撤回；
-当前固定 DEV 明确用途覆盖 8/12、holdout 1/6，两组错误决定均 0，10 条学习/撤回检查通过。
-完整证据与明确未测项见 [验收矩阵](development/STUDENT_VALIDATION.md)，回退见 [开发记录](development/STUDENT_EDITION.md)。
-本轮未重核历史 Release 资产；下面保留原来的 2026-09-27 发布快照，不作为本分支的发布证据。
+独立分支 `codex/student-edition-20260930`，main 基线 `ebd0c8b`，草稿 [PR #2](https://github.com/Lorentz-Caldfilis/Cashing/pull/2)。
+最新应用源码 `a0d6b95`，后续 docs/evidence 提交不改变应用行为。未改 main、许可或发布资产。
+Linux 406 tests / 36.32s，独占 X11 的 100%、重启、125%、150%、200% 五个 GUI 进程通过。
+当前 Windows 精确源码结果见 [启动与最终旅程报告](development/STARTUP_AND_JOURNEY.md)。
+
+原子草稿、单笔粘贴、可逆学习/纠错、本地备份、来源显示、分页完整统计与构建来源验证均已具备。
+固定 DEV/holdout 明确用途覆盖 12/12、6/6，原版 C1/C2 15/15、23/23；均为已知合成回归而非真实准确率。
+旧模拟器的覆盖退让保留在 [第四阶段记录](development/STUDENT_PHASE4.md)。
+1 万条有界性能/新目录恢复与分页审查修复见 [耐用性记录](development/STUDENT_DURABILITY.md)。
+新用户录入→学习→撤销→搜索→备份→恢复旅程已有实际 GUI 截图；启动仍存在本环境首次 Qt 子窗口约 3s 等待。
+
+最有价值的剩余事项：最终独立复核、真实 Windows IME/触控板/跨屏/物理离线与干净设备、
+所有者的开源许可和第三方再分发决定。Library 上传认证失败已停止重试，截图在 repo 中。
+本轮未重核历史 Release 资产；以下 2026-09-27 快照仅为历史，不作为本分支发布证据。
 
 ---
 

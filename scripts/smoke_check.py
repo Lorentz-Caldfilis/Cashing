@@ -8,6 +8,7 @@ import json
 import socket
 import sys
 import traceback
+from time import monotonic
 from datetime import datetime
 from PySide6.QtCore import QTimer, Qt, QPoint
 from PySide6.QtTest import QTest
@@ -37,6 +38,18 @@ def schedule_smoke_check(app, window, database, directory):
         while datetime.now().timestamp() < deadline:
             app.processEvents()
             QTest.qWait(10)
+
+    def wait_for_space(index, name):
+        start = monotonic()
+        while monotonic() - start < 2.0:
+            app.processEvents()
+            if window.current_index() == index and not window.spaces.is_animating():
+                break
+            QTest.qWait(10)
+        result.setdefault("navigation", {})[name] = {
+            "elapsed_seconds": round(monotonic() - start, 4),
+            "index": window.current_index(), "animating": window.spaces.is_animating()}
+        check(window.current_index() == index and not window.spaces.is_animating(), name)
 
     def click_row(row, cell=None):
         target = getattr(row, cell) if cell else None
@@ -115,8 +128,7 @@ def schedule_smoke_check(app, window, database, directory):
 
             # Review: Alt+→ slides over; summary and history agree with the ledger.
             QTest.keyClick(window, Qt.Key.Key_Right, Qt.KeyboardModifier.AltModifier)
-            settle()
-            check(window.current_index() == REVIEW and not window.spaces.is_animating(), "alt_right_switches_to_review")
+            wait_for_space(REVIEW, "alt_right_switches_to_review")
             review.year, review.month = 2026, 9
             review.refresh()
             app.processEvents()
