@@ -28,6 +28,8 @@ def sha256(path):
 
 
 def check_runtime(source):
+    if source.is_symlink() or (hasattr(source, 'is_junction') and source.is_junction()):
+        raise RuntimeError('Runtime root must not be a filesystem link')
     required = ['Cashing.exe', f'_internal/python{sys.version_info.major}{sys.version_info.minor}.dll',
                 '_internal/PySide6/plugins/platforms/qwindows.dll',
                 '_internal/PySide6/translations/qtbase_zh_CN.qm']
@@ -91,6 +93,9 @@ def build_package(root, name, commit):
         raise ValueError('A full source commit SHA is required')
     source, release = root / 'dist/Cashing', root / 'release'
     check_runtime(source)
+    build_source = json.loads((source / 'BUILD_SOURCE.json').read_text('utf-8-sig'))
+    if build_source.get('source_commit') != commit or build_source.get('tracked_changes') is not False:
+        raise RuntimeError('Runtime was not built from this clean source commit; rebuild first')
     release.mkdir(exist_ok=True)
     bundle, archive, checksum = release / name, release / (name + '.zip'), release / (name + '.zip.sha256')
     for path in (bundle, archive, checksum):

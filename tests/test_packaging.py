@@ -20,6 +20,8 @@ def root(tmp_path, monkeypatch):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b'synthetic runtime')
     (tmp_path / 'docs').mkdir()
+    (tmp_path / 'dist/Cashing/BUILD_SOURCE.json').write_text(json.dumps(
+        {'source_commit': SHA, 'tracked_changes': False}))
     (tmp_path / 'docs/USER_GUIDE.md').write_text('Synthetic guide')
     monkeypatch.setattr(package, 'collect_notices', lambda root, target: (target / 'LICENSES').mkdir())
     return tmp_path
@@ -38,6 +40,15 @@ def test_package_identity_and_archive_manifest(root):
             listed.add('Cashing/' + name)
         assert set(z.namelist()) == listed | {'Cashing/MANIFEST.sha256'}
     assert archive.with_suffix('.zip.sha256').read_text().split()[0] == package.sha256(archive)
+
+
+@pytest.mark.parametrize('commit,dirty', [('b' * 40, False), (SHA, True)])
+def test_stale_or_uncommitted_build_cannot_claim_current_source(root, commit, dirty):
+    (root / 'dist/Cashing/BUILD_SOURCE.json').write_text(json.dumps(
+        {'source_commit': commit, 'tracked_changes': dirty}))
+    with pytest.raises(RuntimeError, match='rebuild first'):
+        package.build_package(root, NAME, SHA)
+    assert not (root / 'release').exists()
 
 
 @pytest.mark.parametrize('suffix', ['', '.zip', '.zip.sha256'])
@@ -97,3 +108,22 @@ def test_upstream_license_provenance_matches_repository():
     for item in sources:
         assert package.sha256(root / item['file']) == item['sha256']
         assert '/blob/' in item['source']
+
+
+@pytest.mark.parametrize('tamper', ['extra', 'changed', 'traversal', 'duplicate'])
+def test_verifier_rejects_extra_modified_or_unsafe_package_files(root, tamper):
+    from scripts.verify_release import verify_manifest
+    package.build_package(root, NAME, SHA)
+    install = root / 'release' / NAME / 'Cashing'
+    verify_manifest(install)
+    manifest = install / 'MANIFEST.sha256'
+    if tamper == 'extra':
+        (install / 'unexpected.txt').write_text('synthetic addition')
+    elif tamper == 'changed':
+        (install / 'Cashing.exe').write_bytes(b'changed')
+    elif tamper == 'traversal':
+        manifest.write_text('0' * 64 + '  ../../outside.txt\n')
+    else:
+        manifest.write_text(manifest.read_text() * 2)
+    with pytest.raises(ValueError):
+        verify_manifest(install)

@@ -51,3 +51,9 @@ Windows 修复验证：[run 36754896519](https://github.com/Lorentz-Caldfilis/Ca
 这不改变项目许可，不等于完成公开再分发义务，详见 THIRD_PARTY.md。
 Linux 定向打包/备份回归 21 项通过；Windows 新包验收待运行。
 回退：revert 本批提交恢复旧打包入口，不修改用户数据；旧候选包不要据此公开发行。
+
+`debe879` 的 Windows run 36755691446 已完成全部步骤，证明新打包器及上游许可证收集可在 runner 执行。
+后续补强：构建时保存 BUILD_SOURCE.json，打包拒绝旧 commit 或脏源码构建产物，避免把旧 dist 标作新 HEAD；
+解压验收拒绝新增文件、篡改、路径越界与重复 manifest 项，并拒绝复用验收目录。
+打包针对性回归 21 项通过；恢复原仓库换行规则，third_party 例外保持上游原始字节。
+回退：revert 此补强提交仅改变构建/验证工具，不影响 schema 或用户账本。

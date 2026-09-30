@@ -19,6 +19,15 @@ try {
     $env:PATH = "$(Split-Path $python);$basePython;$env:SystemRoot\System32;$env:SystemRoot"
     & $python -m PyInstaller --clean --noconfirm --workpath (Join-Path $PSScriptRoot 'build') --distpath (Join-Path $PSScriptRoot 'dist') Cashing.spec
     if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed.' }
+    # Bind the build to its source; packaging must not label an older dist as HEAD.
+    # Git may be outside the isolated DLL search PATH, so restore it for provenance.
+    $env:PATH = $saved['PATH']
+    $sourceCommit = & git rev-parse HEAD
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot identify source commit' }
+    & git diff --quiet HEAD
+    $sourceDirty = $LASTEXITCODE -ne 0
+    @{ source_commit = $sourceCommit.Trim(); tracked_changes = $sourceDirty } |
+        ConvertTo-Json | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'dist\Cashing\BUILD_SOURCE.json') -Encoding utf8
     Write-Host 'Built: dist\Cashing\Cashing.exe - distribute the entire Cashing directory.'
 } finally {
     foreach ($name in $names) { [Environment]::SetEnvironmentVariable($name, $saved[$name], 'Process') }
