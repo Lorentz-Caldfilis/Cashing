@@ -83,7 +83,9 @@ def test_the_persons_undecided_is_a_vote_and_blocks_longer_texts():
 def test_labels_can_move_and_disappear():
     model = Classifier()
     model.set_label(1, "瑞幸", "工具", 1)
-    assert model.classify("瑞幸 生椰拿铁") == "工具"
+    assert model.classify("瑞幸") == "工具"
+    # A brand label does not settle a separate, ambiguous product or purpose.
+    assert model.classify("瑞幸 生椰拿铁") is None
     model.set_label(1, "星巴克", "工具", 2)  # the record's description was edited
     assert model.classify("瑞幸") is None and model.classify("星巴克") == "工具"
     model.drop_label(1)

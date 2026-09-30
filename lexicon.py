@@ -66,3 +66,40 @@ AMBIGUOUS = """
 
 # Matched and consumed, but no evidence either way: 面试 is not a bowl of noodles.
 NEUTRAL = "面试 见面 当面"
+
+# Phase-four lexical roles: these consume context but never vote for a category.
+PLATFORMS = '淘宝 京东 拼多多 网购 美团'
+CONTEXT = '''
+    今天 昨天 前天 周末 本周 这周 上周 本月 补记 补交 顺便
+    学校 校园 校内 宿舍 图书馆 教学楼 教室 实验室 社区 小区 车站 路口 楼下 二楼 附近 路上
+    和室友 室友 和同学 同学 给自己 自己 一起 三个人 老地方
+    买了 购买 购入 买 点 充 换 洗 下载 吃 喝 坐 骑 交 付 的 了 和 与 及 加 去 回
+    回学校 回宿舍 回家 上课 上班 充值 续费 报名
+    大份 小份 两份 一份 两杯 一杯 x2
+'''
+# Category heads with meaningful open qualifiers (e.g. an unfamiliar subject + 教材).
+# Unknown qualifiers are admitted only immediately before these heads, not arbitrary products.
+SUBJECT_HEADS = '教材 课本 教辅 习题 习题册 练习册 专业书'
+DOCUMENT_ACTIONS = '打印 复印 扫描'
+DOCUMENT_OBJECTS = '报告 论文 讲义 资料 作业 文件 课件 试卷 照片 证件 简历'
+HARDWARE_HEADS = '键盘 鼠标 鼠标垫 显示器 硬盘 充电器 充电头 数据线 电脑 笔记本电脑 平板 电池'
+HARDWARE_QUALIFIERS = '手机 蓝牙 无线 有线 机械 固态 移动 笔记本 台式'
+
+# Typed modifier targets: adding a modifier never supplies a category by itself.
+# Domains are narrower than the three user-facing categories.
+FOOD_HEADS = '饭 米饭 炒饭 盖饭 盖浇饭 拌饭 面条 拉面 炒面 米线 米粉 粥 饺子 包子 牛奶 酸奶 面包'
+STUDY_ACTIVITIES = '考研 网课 课程 四六级 雅思 托福 考试 知网'
+EVENT_HEADS = '门票 演唱会 音乐节 话剧'
+PHYSICAL_MODIFIERS = '电动 智能 便携 一次性'
+PHYSICAL_HEADS = '牙刷 纸巾 毛巾 衣架 拖把 雨伞 剃须刀'
+
+# Lexical homonyms are distinct from personal-purpose ambiguity (e.g. coffee).
+# Only an adjacent, explicit sense marker may disambiguate; no brand-only guess.
+POLYSEMOUS_CONTEXTS = {
+    '苹果': {'水果': '生活', '电脑': '工具', '笔记本电脑': '工具', '平板': '工具',
+           'ipad': '工具', '充电器': '工具', '数据线': '工具', '键盘': '工具', '鼠标': '工具'},
+    '皮肤': {'游戏': '娱乐', '原神': '娱乐', '王者荣耀': '娱乐', '吃鸡': '娱乐'},
+    '月卡': {'公交': '生活', '地铁': '生活', '游戏': '娱乐', '原神': '娱乐', '王者荣耀': '娱乐'},
+    '粉丝': {'炒': '生活', '煮': '生活', '蒸': '生活', '炖': '生活', '火锅': '生活',
+           '应援': '娱乐'},
+}
