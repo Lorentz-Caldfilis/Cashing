@@ -1,9 +1,11 @@
 """Cashing main window: two full-window spaces, Capture ⇄ Review, and window-level overlays."""
 from pathlib import Path
+from datetime import datetime
 from PySide6.QtCore import QPoint, QUrl, QTimer
 from PySide6.QtGui import QShortcut, QKeySequence, QDesktopServices
-from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QToolButton, QMenu, QMessageBox
+from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QToolButton, QMenu, QMessageBox, QFileDialog
 from draft import DraftStore
+from database import DatabaseError
 from ledger import Ledger
 from ui import theme
 from ui.capture_page import CapturePage
@@ -72,6 +74,8 @@ class MainWindow(QMainWindow):
         self.utility_menu = AnchoredMenu(self.utility)
         self.open_data_action = self.utility_menu.addAction("打开数据目录")
         self.open_data_action.triggered.connect(self.open_data_directory)
+        self.backup_action = self.utility_menu.addAction("备份账本…")
+        self.backup_action.triggered.connect(self.backup_ledger)
         self.utility_menu.addSeparator()
         self.about_action = self.utility_menu.addAction("关于 Cashing")
         self.about_action.triggered.connect(self.show_about)
@@ -126,6 +130,20 @@ class MainWindow(QMainWindow):
     def open_data_directory(self):
         target = self.data_directory or self.database_path.parent
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(target)))
+
+    def backup_ledger(self):
+        suggested = (self.data_directory or self.database_path.parent) / (
+            "Cashing-backup-" + datetime.now().strftime("%Y%m%d-%H%M%S") + ".sqlite3")
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "备份账本（未加密；请选择新文件名）", str(suggested), "SQLite 账本 (*.sqlite3)")
+        if not filename:
+            return
+        try:
+            target = self.ledger.backup_to(filename)
+        except DatabaseError as exc:
+            self.notify(str(exc), danger=True)
+            return
+        self.notify(f"账本已备份到 {target.name}（未加密）")
 
     def about_text(self):
         version = QApplication.applicationVersion() or ""

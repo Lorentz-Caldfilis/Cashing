@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 )
 from database import DatabaseError
 from domain import CATEGORIES, UNKNOWN_LABEL, format_amount, cents_to_input, parse_amount, MAX_DESCRIPTION
-from ledger import UNSET
+from ledger import UNSET, AUTO
 from ui import motion, theme
 from ui.capture_page import QuietLineEdit, normalize_amount_text
 from ui.controls import QuietDateTimeEdit, DATE_TEXT_NUDGE
@@ -350,6 +350,7 @@ class RecordRow(QWidget):
         self._hover = motion.Blend(self, motion.HOVER, self.update)
         self._edit_weight = motion.Blend(self, motion.EDIT, self.update)
         self._committing = False
+        self.last_change = None
         self._editors_built = False
         self.setAttribute(Qt.WidgetAttribute.WA_Hover, True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -414,6 +415,9 @@ class RecordRow(QWidget):
         self.category_dot.setStyleSheet(
             f"background: {theme.CATEGORY_COLORS[category]}; border-radius: 3px;" if known else "background: transparent;")
         self.category_dot.setVisible(known)
+        self.category.setToolTip("你指定的分类，会用于本机学习；可在编辑中恢复自动判断。"
+                                 if record.get("category_by_user") else
+                                 "本机自动判断，结合你的历史纠正；点击可修改。")
         self.setAccessibleName(f"{record['datetime']} {format_amount(record['amount_cents'])} {record['description']}")
 
     # ---- editors ----------------------------------------------------------
@@ -469,7 +473,8 @@ class RecordRow(QWidget):
         self.category_box = CategoryBox()
         self.category_box.setObjectName("rowEdit")
         self.category_box.setFont(theme.font(13))
-        self.category_box.addItems([*CATEGORIES, UNKNOWN_LABEL])
+        self.category_box.addItems([*CATEGORIES, UNKNOWN_LABEL, "自动判断"])
+        self.category_box.setToolTip("选择类别会在本机学习；自动判断会移除此条记录的个人标签。")
         self.category_box.setFixedHeight(LINE2_HEIGHT)
         self.category_box.setAccessibleName("分类")
         self.grid.addWidget(self.category_box, 1, 1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -484,6 +489,7 @@ class RecordRow(QWidget):
         self.description_edit.editingFinished.connect(lambda: self.commit("description"))
         self.time_edit.editingFinished.connect(lambda: self.commit("time"))
         self.category_box.currentIndexChanged.connect(lambda _: self.commit("category"))
+        self.category_box.activated.connect(lambda _: self.commit("category", explicit=True))
 
     def _set_time_format(self, fmt):
         """QDateTimeEdit pins its date range to the current date while only time sections are
@@ -559,7 +565,7 @@ class RecordRow(QWidget):
         self._leave_edit_state()
 
     # ---- commits: legal changes take effect immediately -------------------
-    def _pending(self, name):
+    def _pending(self, name, *, explicit=False):
         if name == "amount":
             text = normalize_amount_text(self.amount_edit.text())
             if not text:
@@ -573,14 +579,17 @@ class RecordRow(QWidget):
             value = self.time_edit.dateTime().toPython().replace(second=0, microsecond=0)
             return UNSET if value.strftime("%Y-%m-%d %H:%M") == self.record["datetime"] else value
         index = self.category_box.currentIndex()
+        if index == len(CATEGORIES) + 1:
+            return AUTO if self.record.get("category_by_user") else UNSET
         value = CATEGORIES[index] if 0 <= index < len(CATEGORIES) else None
-        return UNSET if value == self.record["category"] else value
+        return UNSET if value == self.record["category"] and not (
+            explicit and not self.record.get("category_by_user")) else value
 
-    def commit(self, name):
+    def commit(self, name, *, explicit=False):
         if not self.editing or self._committing:
             return True
         try:
-            value = self._pending(name)
+            value = self._pending(name, explicit=explicit)
         except ValueError as exc:
             self.hint.setText(str(exc))
             self.hint.show()
@@ -591,7 +600,7 @@ class RecordRow(QWidget):
         old = dict(self.record)
         self._committing = True
         try:
-            new = self.ledger.update(self.record, **{field: value})
+            new, self.last_change = self.ledger.update_undoable(self.record, **{field: value})
         except ValueError as exc:
             self.hint.setText(str(exc))
             self.hint.show()

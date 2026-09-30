@@ -774,7 +774,10 @@ class ReviewPage(QWidget):
 
     def _row_changed(self, row, old, new):
         """A legal change already reached the ledger: keep the summary honest right away."""
-        if (old["category"], old["description"]) != (new["category"], new["description"]):
+        if row.last_change is not None:
+            receipt = row.last_change
+            self.notify("已修改记录", undo=lambda: self._undo_edit(receipt))
+        if (old["category"], old["description"], old.get("category_by_user")) != (new["category"], new["description"], new.get("category_by_user")):
             self.history.reinterpret(self.ledger, skip=row)
         if not self.searching:
             try:
@@ -784,6 +787,17 @@ class ReviewPage(QWidget):
             self.summary.set_totals(totals)
         if old["datetime"] != new["datetime"]:
             self._rebuild_after_edit = True  # order or month membership changed; re-sort once the edit ends
+
+    def _undo_edit(self, receipt):
+        if not self.prepare_leave():
+            self.notify("请先完成或取消正在输入的修改。", danger=True)
+            return
+        try:
+            self.ledger.undo_update(receipt)
+        except DatabaseError as exc:
+            self.notify(f"无法撤销修改。{exc}", danger=True)
+            return
+        self.refresh(keep_scroll=True)
 
     # ---- delete + undo -------------------------------------------------------
     def _delete_row(self, row):

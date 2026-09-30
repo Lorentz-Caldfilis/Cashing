@@ -282,3 +282,31 @@ def test_scroll_edges_appear_only_while_records_continue(window, qtbot, database
     qtbot.waitUntil(lambda: page.top_edge.shown() and not page.bottom_edge.shown(), timeout=1000)
     page.change_month(-1)  # an empty month fits: no edge at all
     qtbot.waitUntil(lambda: not page.top_edge.shown() and not page.bottom_edge.shown(), timeout=1000)
+
+
+def test_category_reset_and_undo_relearns_for_other_rows(window, database):
+    first = window.ledger.create(1200, datetime(2026, 9, 20, 12, 0), "星云小站")
+    window.ledger.create(1800, datetime(2026, 9, 20, 13, 0), "星云小站")
+    window.ledger.update(first, category="生活")
+    window.switch_to(REVIEW, animate=False)
+    september(window.review)
+    row = window.review.history.row_for(first["id"])
+    window.review._row_clicked(row, "category")
+    row.category_box.setCurrentIndex(4)
+    assert database.user_labels() == []
+    assert all(r.record["category"] is None for r in window.review.rows())
+    window.toast._run_undo()
+    assert len(database.user_labels()) == 1
+    assert all(r.record["category"] == "生活" for r in window.review.rows())
+
+
+def test_explicit_selection_can_confirm_the_current_automatic_category(window, database):
+    record = window.ledger.create(1200, datetime(2026, 9, 20, 12, 0), "午饭")
+    window.switch_to(REVIEW, animate=False)
+    september(window.review)
+    row = window.review.history.row_for(record["id"])
+    window.review._row_clicked(row, "category")
+    row.category_box.activated.emit(0)
+    assert database.get_record(record["id"])["category_by_user"] == 1
+    window.toast._run_undo()
+    assert database.get_record(record["id"])["category_by_user"] == 0

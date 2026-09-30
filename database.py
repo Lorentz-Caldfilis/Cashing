@@ -15,6 +15,8 @@ from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 import sqlite3
+import os
+import tempfile
 from domain import validate_record, shift_month, summarize_records, parse_stored_datetime
 
 SCHEMA_VERSION = 3
@@ -126,6 +128,9 @@ class Database:
                 raise DatabaseError("数据库完整性检查失败，请保留文件并检查备份；未修改账单。")
             exists = con.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='records'").fetchone()
+            if not exists and (version != 0 or con.execute(
+                    "SELECT 1 FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' LIMIT 1").fetchone()):
+                raise DatabaseError("数据库缺少账单表或属于其他应用，已停止打开；未创建空账本。")
             legacy = bool(exists) and version < SCHEMA_VERSION
             if legacy:
                 # Validate before touching anything; the backup precedes the rebuild.
@@ -147,6 +152,41 @@ class Database:
                     self._checked_record(row)
             con.execute("CREATE INDEX IF NOT EXISTS idx_records_datetime ON records(datetime DESC, id DESC)")
             con.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+
+    def backup_to(self, destination):
+        """Consistent SQLite snapshot, atomically published without replacing any file.
+
+        The temporary and target share a filesystem. A hard link publishes a completed
+        snapshot exclusively; unsupported filesystems fail without touching the ledger.
+        """
+        target = Path(destination).resolve()
+        if target == self.path or target.exists():
+            raise DatabaseError("备份目标已存在，请选择一个新文件名；未覆盖任何文件。")
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(dir=target.parent, prefix=".cashing-backup-",
+                                             suffix=".tmp", delete=False) as stream:
+                temporary = Path(stream.name)
+            with self._connection() as source:
+                backup = sqlite3.connect(temporary)
+                try:
+                    source.backup(backup)
+                    if backup.execute("PRAGMA quick_check").fetchone()[0] != "ok":
+                        raise DatabaseError("备份完整性检查失败，未生成备份。")
+                finally:
+                    backup.close()
+            with temporary.open("rb") as stream:
+                os.fsync(stream.fileno())
+            os.link(temporary, target)
+            return target
+        except (OSError, sqlite3.Error) as exc:
+            raise DatabaseError("无法创建备份，请检查目录权限、空间或更换本地磁盘；账本未修改。") from exc
+        finally:
+            if temporary is not None:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     @staticmethod
     def _verify_legacy_shape(con):
@@ -227,6 +267,19 @@ class Database:
             )
             if cursor.rowcount != 1:
                 raise DatabaseError("这条记录已不存在，请刷新账单。")
+
+    def revert_update(self, before, expected):
+        """Restore an edit only if nobody has changed its stored state since then."""
+        self._checked_record(before)
+        with self._connection() as con:
+            con.execute("BEGIN IMMEDIATE")
+            current = con.execute("SELECT * FROM records WHERE id=?", (expected["id"],)).fetchone()
+            if current is None or dict(current) != expected:
+                raise DatabaseError("这条记录已被再次修改或删除，无法撤销旧修改。请刷新后检查。")
+            columns = [name for name in COLUMN_TYPES if name != "id"]
+            assignments = ", ".join(f"{name}=?" for name in columns)
+            con.execute(f"UPDATE records SET {assignments} WHERE id=?",
+                        [before[name] for name in columns] + [before["id"]])
 
     def delete_record(self, record_id):
         with self._connection() as con:
