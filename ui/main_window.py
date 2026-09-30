@@ -1,6 +1,6 @@
 """Cashing main window: two full-window spaces, Capture ⇄ Review, and window-level overlays."""
 from pathlib import Path
-from PySide6.QtCore import QPoint, QUrl
+from PySide6.QtCore import QPoint, QUrl, QTimer
 from PySide6.QtGui import QShortcut, QKeySequence, QDesktopServices
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QToolButton, QMenu, QMessageBox
 from draft import DraftStore
@@ -84,6 +84,12 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("Alt+Left"), self, activated=lambda: self.switch_to(CAPTURE))
         self.wheel = WheelNavigator(self, self.move_by)
         QApplication.instance().installEventFilter(self.wheel)
+        self._draft_timer = QTimer(self)
+        self._draft_timer.setSingleShot(True)
+        self._draft_timer.setInterval(350)
+        self._draft_timer.timeout.connect(self._save_draft)
+        self.capture.draft_changed.connect(self._draft_timer.start)
+        self.capture.changed.connect(self._save_draft)
         self._restore_draft()
         self._update_overlays()
 
@@ -137,10 +143,19 @@ class MainWindow(QMainWindow):
         if draft is not None:
             self.capture.restore_draft(draft)
 
-    def closeEvent(self, event):
-        QApplication.instance().removeEventFilter(self.wheel)
+    def _save_draft(self):
+        self._draft_timer.stop()
         if self.drafts is not None:
-            self.drafts.save(self.capture.draft())
+            if not self.drafts.save(self.capture.draft()):
+                self.notify("草稿未能保存到本机，请保留窗口并检查磁盘权限。", danger=True)
+                return False
+        return True
+
+    def closeEvent(self, event):
+        if not self._save_draft():
+            event.ignore()
+            return
+        QApplication.instance().removeEventFilter(self.wheel)
         super().closeEvent(event)
 
     # ---- geometry ----------------------------------------------------------

@@ -6,6 +6,9 @@ so it cannot appear in Review, totals, search or the chart.
 from dataclasses import dataclass, asdict
 from datetime import datetime
 import json
+import logging
+import os
+import tempfile
 from pathlib import Path
 
 DRAFT_FILE = "draft.json"
@@ -44,18 +47,35 @@ class DraftStore:
             return None
         return None if draft.is_empty else draft
 
-    def save(self, draft: Draft):
+    def save(self, draft: Draft) -> bool:
+        """Replace atomically so a failed write leaves the previous draft intact."""
         if draft.is_empty:
-            self.clear()
-            return
+            return self.clear()
+        temporary = None
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            self.path.write_text(json.dumps(asdict(draft), ensure_ascii=False), "utf-8")
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=self.path.parent,
+                                             prefix=".draft-", suffix=".tmp", delete=False) as stream:
+                temporary = Path(stream.name)
+                json.dump(asdict(draft), stream, ensure_ascii=False)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, self.path)
+            return True
         except OSError:
-            pass  # Losing a draft is acceptable; interrupting shutdown is not.
+            logging.warning("Could not persist Capture draft", exc_info=True)
+            return False
+        finally:
+            if temporary is not None:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
-    def clear(self):
+    def clear(self) -> bool:
         try:
             self.path.unlink(missing_ok=True)
+            return True
         except OSError:
-            pass
+            logging.warning("Could not clear Capture draft", exc_info=True)
+            return False

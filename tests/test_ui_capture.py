@@ -258,3 +258,38 @@ def test_the_toast_leaves_the_way_it_came_in(window, qtbot):
     if motion.ENABLED:
         assert toast.isVisible()  # the surface fades out rather than blinking away
     qtbot.waitUntil(lambda: not toast.isVisible(), timeout=2000)
+
+
+def test_undo_preserves_the_next_pending_record(window, database):
+    capture = window.capture
+    capture.amount.setText("12")
+    capture.description.setText("食堂")
+    capture.record()
+    capture.amount.setText("18")
+    capture.description.setText("打印资料")
+    capture.set_time(datetime(2026, 9, 28, 9, 0))
+    pending = capture.draft()
+    window.toast._run_undo()
+    assert stored(database) == []
+    assert capture.draft() == pending
+    assert "已保留" in window.toast.label.text()
+
+
+def test_draft_is_saved_while_window_is_open(window, qtbot, tmp_path):
+    capture = window.capture
+    capture.amount.setText("15")
+    capture.description.setText("合成草稿")
+    capture.set_time(datetime(2026, 9, 28, 9, 0))
+    qtbot.waitUntil(lambda: DraftStore(tmp_path).load() == capture.draft(), timeout=2000)
+    capture.record()
+    assert DraftStore(tmp_path).load() is None
+
+
+def test_failed_draft_write_keeps_window_open(window, monkeypatch):
+    window.capture.amount.setText("20")
+    monkeypatch.setattr(window.drafts, "save", lambda draft: False)
+    window.close()
+    assert window.isVisible()
+    assert window.capture.amount.text() == "20"
+    assert "草稿未能保存" in window.toast.label.text()
+    monkeypatch.undo()

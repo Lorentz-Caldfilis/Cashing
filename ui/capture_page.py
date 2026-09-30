@@ -339,6 +339,7 @@ class TimePopover(QFrame):
 
 
 class CapturePage(QWidget):
+    draft_changed = Signal()
     changed = Signal()  # the ledger changed (record stored or undone)
 
     def __init__(self, ledger, notify, parent=None):
@@ -455,6 +456,9 @@ class CapturePage(QWidget):
         self.description.returnPressed.connect(self.record)
         self.description.textChanged.connect(lambda: self._clear_save_error())
 
+        self.amount.textChanged.connect(self.draft_changed)
+        self.description.textChanged.connect(self.draft_changed)
+
         self._clock = QTimer(self)
         self._clock.setInterval(20_000)
         self._clock.timeout.connect(self._refresh_time_label)
@@ -477,10 +481,12 @@ class CapturePage(QWidget):
     def set_time(self, when: datetime):
         self._when = when.replace(second=0, microsecond=0)
         self._refresh_time_label()
+        self.draft_changed.emit()
 
     def reset_time(self):
         self._when = None
         self._refresh_time_label()
+        self.draft_changed.emit()
 
     def has_input(self) -> bool:
         return bool(self.amount.text().strip() or self.description.text().strip())
@@ -583,6 +589,10 @@ class CapturePage(QWidget):
             self.ledger.undo_create(stored["id"])
         except DatabaseError as exc:
             self.notify(f"无法撤销，这笔记录仍然保留。{exc}", danger=True)
+            return
+        if self.has_input() or not self.time_is_auto():
+            self.notify("已撤销上一笔，正在输入的内容已保留。")
+            self.changed.emit()
             return
         amount_text, description, when = previous
         self.amount.setText(amount_text)
