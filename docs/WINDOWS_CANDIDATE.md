@@ -17,6 +17,9 @@ Expand-Archive -LiteralPath "release/$name.zip" -DestinationPath "work/extracted
 ```
 
 将 Get-FileHash 结果与同目录 `.zip.sha256` 对比，并核对包内 BUILD_INFO.json 的完整源码 SHA。
+build.ps1 在构建前后记录并核对解释器、依赖版本/授权文本与来源，打包再次核对环境和运行文件摘要；
+构建后更换依赖或修改 dist 必须重新构建。BUILD_ENVIRONMENT/BUILD_DEPENDENCIES 是构建环境，
+BUNDLED_FILES 是实际运行文件，不将二者混称为运行依赖。
 每次完整验收使用新的 label 和解压目录；pytest 的 basetemp 只能指向专用测试目录。
 
 `verify_release.py` 对源码/解压程序执行合成 GUI 流程，包含首次启动、重启持久化、中文空格路径、

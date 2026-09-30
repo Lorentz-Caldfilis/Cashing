@@ -6,6 +6,7 @@ import sys
 import zipfile
 import pytest
 from scripts import package_release as package
+from scripts import build_provenance as provenance
 
 SHA = 'a' * 40
 NAME = 'Cashing-test-candidate'
@@ -21,8 +22,7 @@ def root(tmp_path, monkeypatch):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b'synthetic runtime')
     (tmp_path / 'docs').mkdir()
-    (tmp_path / 'dist/Cashing/BUILD_SOURCE.json').write_text(json.dumps(
-        {'source_commit': SHA, 'tracked_changes': False}))
+    provenance.write_record(tmp_path / 'dist/Cashing', SHA, False, provenance.environment_snapshot())
     (tmp_path / 'docs/USER_GUIDE.md').write_text('Synthetic guide')
     monkeypatch.setattr(package, 'collect_notices', lambda root, target: (target / 'LICENSES').mkdir())
     return tmp_path
@@ -146,6 +146,7 @@ def notice_root(root, monkeypatch):
     python.mkdir()
     (python / 'LICENSE').write_text('Synthetic Python license fixture')
     monkeypatch.setattr(package.sys, 'base_prefix', str(python))
+    provenance.write_record(root / 'dist/Cashing', SHA, False, provenance.environment_snapshot())
     return root
 
 
@@ -203,5 +204,67 @@ def test_real_collector_rejects_links(notice_root, listed):
     except OSError:
         pytest.skip('Host does not permit creation of filesystem links')
     with pytest.raises(RuntimeError, match='links'):
+        package.build_package(root, NAME, SHA)
+    assert not list((root / 'release').iterdir())
+
+
+@pytest.mark.parametrize('change', ['python', 'dependency_version', 'license_digest'])
+def test_changed_build_environment_is_rejected_before_packaging(root, change):
+    marker = root / 'dist/Cashing/BUILD_SOURCE.json'
+    record = json.loads(marker.read_text())
+    environment = record['build_environment']
+    if change == 'python':
+        environment['python'] = 'synthetic other interpreter'
+    elif change == 'dependency_version':
+        next(d for d in environment['distributions'] if d['name'].lower() == 'pyside6')['version'] = '0.0.synthetic'
+    else:
+        environment['python_license_sha256'] = 'synthetic old license digest'
+    marker.write_text(json.dumps(record))
+    with pytest.raises(RuntimeError, match='environment differs'):
+        package.build_package(root, NAME, SHA)
+    assert not (root / 'release').exists()
+
+
+@pytest.mark.parametrize('change', ['modified', 'extra', 'missing'])
+def test_changed_runtime_cannot_reuse_build_provenance(root, change):
+    runtime = root / 'dist/Cashing'
+    if change == 'modified':
+        (runtime / 'Cashing.exe').write_bytes(b'synthetic replacement')
+    elif change == 'extra':
+        (runtime / 'unexpected.dll').write_bytes(b'synthetic addition')
+    else:
+        record = json.loads((runtime / 'BUILD_SOURCE.json').read_text())
+        record['runtime_files']['missing-original.dll'] = '0' * 64
+        (runtime / 'BUILD_SOURCE.json').write_text(json.dumps(record))
+    with pytest.raises(RuntimeError, match='runtime files changed'):
+        package.build_package(root, NAME, SHA)
+    assert not (root / 'release').exists()
+
+
+def test_package_separates_build_environment_and_actual_bundled_files(root):
+    archive = package.build_package(root, NAME, SHA)
+    with zipfile.ZipFile(archive) as z:
+        environment = json.loads(z.read('Cashing/BUILD_ENVIRONMENT.json'))
+        bundled = json.loads(z.read('Cashing/BUNDLED_FILES.json'))
+        assert any(d['name'].lower() == 'pytest' for d in environment['distributions'])
+        assert not any('pytest' in p.lower() for p in bundled['files'])
+        for name, digest in bundled['files'].items():
+            assert hashlib.sha256(z.read('Cashing/' + name)).hexdigest() == digest
+
+
+def test_runtime_with_old_package_metadata_is_rejected(root):
+    (root / 'dist/Cashing/README.md').write_text('stale package guide')
+    with pytest.raises(RuntimeError, match='old package outputs'):
+        package.build_package(root, NAME, SHA)
+
+
+def test_copied_runtime_is_verified_before_adding_notices(root, monkeypatch):
+    real_copy = package.shutil.copytree
+    def corrupt(source, target, *args, **kwargs):
+        result = real_copy(source, target, *args, **kwargs)
+        (Path(target) / 'Cashing.exe').write_bytes(b'synthetic copy corruption')
+        return result
+    monkeypatch.setattr(package.shutil, 'copytree', corrupt)
+    with pytest.raises(RuntimeError, match='runtime files changed'):
         package.build_package(root, NAME, SHA)
     assert not list((root / 'release').iterdir())

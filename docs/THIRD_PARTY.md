@@ -5,15 +5,18 @@
 
 ## 收集方式与边界
 
-`package_release.py` 将构建环境各 distribution 的名称、版本与原始授权声明写入 `DEPENDENCIES.json`，
+`package_release.py` 将构建环境各 distribution 的名称、版本与原始授权声明写入 `BUILD_DEPENDENCIES.json`，
 并收集 wheel 附带的 LICENSE/COPYING 文件；构建依赖列表不等于全部被打包的运行依赖。
+构建前后核对 Python、依赖版本/metadata/RECORD 与授权文本摘要，保存在 BUILD_ENVIRONMENT.json；
+BUNDLED_FILES.json 单独记录实际冻结运行文件与摘要。更换构建环境或改动 dist 后必须重新构建。
 Python 的原始 LICENSE 和 PyInstaller 的 COPYING（含 bootloader exception）必须存在，否则打包失败。
 实际打包文件全部列于 `MANIFEST.sha256`；源码 SHA、Python 和 PySide6 版本列于 `BUILD_INFO.json`。
 
 本环境的 PySide6/Essentials/Addons/shiboken6 wheel 没有独立许可证文件，因此另收集官方 v6.11.2
 源码中的许可证文本，以及 Qt Base 的全部 57 份第三方 attribution 和其引用的许可证文件。
 `LICENSES/upstream/sources.json`（源码树为 `third_party/sources.json`）记录每个原始文件的
-精确上游 commit URL 与 SHA-256；打包前逐一验证，不从网络临时补取文本。
+精确上游 commit URL 与 SHA-256；打包前逐一验证，仅复制清单允许的文件，不复制本地未列出的文件；拒绝链接和不安全路径。
+最终 staging 再扫描私密文件；不从网络临时补取文本。
 Qt Base 清单包括未必用于 Windows 的可选组件，不能据此推断候选包含全部组件。
 
 ## 主要组件
@@ -24,7 +27,7 @@ Qt Base 清单包括未必用于 Windows 的可选组件，不能据此推断候
 | PySide6 / shiboken6 6.11.2 | Qt Python 绑定 | 官方 pyside-setup v6.11.2 LICENSES；wheel 的授权表达式另保留 |
 | Qt 6.11.2 | Core / GUI / Widgets、平台插件与中文翻译 | Qt Base v6.11.2 LICENSES 和第三方 attribution；使用动态库 |
 | PyInstaller | 冻结程序与启动器 | 安装包 COPYING，含 GPL bootloader exception |
-| 测试/构建依赖 | pytest、pytest-qt、hooks 等 | 实际版本与原声明见 DEPENDENCIES.json；随附文本原样保留 |
+| 测试/构建依赖 | pytest、pytest-qt、hooks 等 | 实际版本与原声明见 BUILD_DEPENDENCIES.json；随附文本原样保留 |
 
 上游说明：[Qt for Python 授权资料](https://doc.qt.io/qtforpython-6/licenses.html)、
 [Qt 开源义务](https://www.qt.io/licensing/open-source-lgpl-obligations)、

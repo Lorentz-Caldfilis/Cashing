@@ -16,6 +16,11 @@ import sys
 import tempfile
 import zipfile
 
+if __package__:
+    from .build_provenance import verify_record
+else:
+    from build_provenance import verify_record
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -104,7 +109,7 @@ def collect_notices(root, target):
         # importlib metadata normally spells this distribution pyinstaller.
         if not any(p.name.upper().startswith('COPYING') for p in licenses.rglob('*') if 'pyinstaller' in str(p).lower()):
             raise RuntimeError('PyInstaller license/bootloader exception not found')
-    (target / 'DEPENDENCIES.json').write_text(json.dumps(inventory, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    (target / 'BUILD_DEPENDENCIES.json').write_text(json.dumps(inventory, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     shutil.copy2(root / 'docs/THIRD_PARTY.md', target / 'THIRD_PARTY.md')
 
 
@@ -115,9 +120,14 @@ def build_package(root, name, commit):
         raise ValueError('A full source commit SHA is required')
     source, release = root / 'dist/Cashing', root / 'release'
     check_runtime(source)
+    for reserved in ('README.md', 'LICENSES', 'THIRD_PARTY.md', 'BUILD_INFO.json',
+                     'BUILD_ENVIRONMENT.json', 'BUILD_DEPENDENCIES.json', 'BUNDLED_FILES.json', 'MANIFEST.sha256'):
+        if (source / reserved).exists():
+            raise RuntimeError('Runtime contains old package outputs; rebuild first')
     build_source = json.loads((source / 'BUILD_SOURCE.json').read_text('utf-8-sig'))
     if build_source.get('source_commit') != commit or build_source.get('tracked_changes') is not False:
         raise RuntimeError('Runtime was not built from this clean source commit; rebuild first')
+    verify_record(source, build_source)
     release.mkdir(exist_ok=True)
     bundle, archive, checksum = release / name, release / (name + '.zip'), release / (name + '.zip.sha256')
     for path in (bundle, archive, checksum):
@@ -129,12 +139,20 @@ def build_package(root, name, commit):
             stage = Path(temporary)
             target = stage / 'Cashing'
             shutil.copytree(source, target)
+            verify_record(target, build_source)
+            (target / 'BUILD_SOURCE.json').write_text(json.dumps(build_source, indent=2) + '\n', encoding='utf-8')
             # A standalone guide has no broken repository-relative links.
             shutil.copy2(root / 'docs/USER_GUIDE.md', target / 'README.md')
             collect_notices(root, target)
+            environment = build_source['build_environment']
+            (target / 'BUILD_ENVIRONMENT.json').write_text(json.dumps(environment, indent=2) + '\n', encoding='utf-8')
+            (target / 'BUNDLED_FILES.json').write_text(json.dumps({
+                'scope': 'Actual PyInstaller runtime files; build dependencies are listed separately',
+                'files': build_source['runtime_files'],
+            }, indent=2) + '\n', encoding='utf-8')
             (target / 'BUILD_INFO.json').write_text(json.dumps({
-                'source_commit': commit, 'package': name, 'python': sys.version,
-                'pyside6': metadata.version('PySide6'), 'candidate_only': True,
+                'source_commit': commit, 'package': name, 'python': environment['python'],
+                'candidate_only': True,
                 'source_license': 'No public source license granted by this candidate',
             }, indent=2) + '\n', encoding='utf-8')
             check_runtime(target)  # Includes collected notices and every other staged input.

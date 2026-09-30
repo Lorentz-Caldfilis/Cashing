@@ -40,3 +40,12 @@ Checkpoint：`58aba2a`，应用/构建实证 `0623c05`。不改 schema、个人�
 最终 staging 再执行私密文件检查。真实 collect_notices 集成回归包含未跟踪 draft/private notes、
 被列入白名单的 draft、symlink 与 unsafe/duplicate paths；未 stub collector，Python license 使用合成位置。
 定向打包 31 项通过。此修改无应用/schema 影响，可独立 git revert；Windows 验证随下一批合并运行。
+
+## 构建环境与运行文件归因
+
+第二项审查修复：构建开始/结束记录并比较源码、解释器、依赖版本、metadata/RECORD 和授权文件摘要；
+BUILD_SOURCE v2 同时保存实际运行文件哈希。打包必须与记录的环境一致，并在复制前后核对运行文件。
+BUILD_ENVIRONMENT / BUILD_DEPENDENCIES 与 BUNDLED_FILES 分开，后者不从 pip 版本推测 DLL 身份。
+更换 PySide6/解释器/许可证、修改或增加运行文件、复制损坏及混入旧包输出均拒绝打包。
+此前 38 项定向回归通过，新增复制损坏/旧包输出 2 项通过；下一次 Windows CI 做完整集成验证。
+这是本地一致性校验，不是签名供应链证明。回退需同时回退 build.ps1/provenance/package，以免混用 marker 版本。
