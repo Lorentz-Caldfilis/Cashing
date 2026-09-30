@@ -1,0 +1,10 @@
+{
+  "qt_import": 0.0634,
+  "database_classification_import": 0.0745,
+  "ui_import": 0.1,
+  "application": 0.1062,
+  "db_initialize": 0.1995,
+  "window_constructed": 4.0438,
+  "capture_interactive": 4.1577,
+  "review_correct": 4.8751
+}

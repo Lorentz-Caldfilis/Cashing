@@ -485,6 +485,7 @@ class ReviewPage(QWidget):
         self.month_label.clicked.connect(self.show_current_month)
         header.addWidget(self.month_label, 0, Qt.AlignmentFlag.AlignVCenter)
         self.next = ChevronButton(1, "下一个月")
+        self.next.setEnabled(False)  # starts in current month; no data query required
         self.next.clicked.connect(lambda: self.change_month(1))
         header.addWidget(self.next, 0, Qt.AlignmentFlag.AlignVCenter)
         header.addStretch()
@@ -619,7 +620,7 @@ class ReviewPage(QWidget):
         bar.rangeChanged.connect(lambda *_: self._sync_axis())
         bar.rangeChanged.connect(lambda *_: self._sync_edges())
         bar.valueChanged.connect(lambda _: self._sync_edges())
-        self.refresh()
+        # MainWindow refreshes this space before it becomes visible.
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

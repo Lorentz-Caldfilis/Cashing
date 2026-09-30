@@ -92,7 +92,7 @@ class MainWindow(QMainWindow):
         self.data_directory = Path(data_directory) if data_directory else None
         self.database_path = database.path
 
-        self.capture.changed.connect(self.review.refresh)
+        self.capture.changed.connect(self._capture_changed)
         QShortcut(QKeySequence("Alt+Right"), self, activated=lambda: self.switch_to(REVIEW))
         QShortcut(QKeySequence("Alt+Left"), self, activated=lambda: self.switch_to(CAPTURE))
         QShortcut(QKeySequence("Ctrl+Alt+Z"), self, activated=self._undo_recent)
@@ -108,6 +108,11 @@ class MainWindow(QMainWindow):
         self._update_overlays()
 
     # ---- spaces ----------------------------------------------------------
+    def _capture_changed(self):
+        if self.current_index() == REVIEW:
+            self.review.refresh()
+        # Hidden Review is freshly queried by switch_to; no duplicate monthly work.
+
     def current_index(self):
         return self.spaces.current_index()
 

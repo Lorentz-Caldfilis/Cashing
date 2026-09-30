@@ -234,7 +234,7 @@ def test_refresh_reuses_widgets_and_failure_never_looks_empty(window, database, 
     assert not page.failure.isVisible() and page.summary.total.text() == "1.00"
 
 
-def test_capture_save_shows_up_in_review_without_leaving_capture(window, qtbot, database):
+def test_capture_save_is_visible_when_review_is_entered(window, qtbot, database):
     capture = window.capture
     capture.amount.setText("28.5")
     capture.description.setText("晚饭")
@@ -243,6 +243,8 @@ def test_capture_save_shows_up_in_review_without_leaving_capture(window, qtbot, 
     now = datetime.now()
     page = window.review
     assert (page.year, page.month) == (now.year, now.month)
+    assert database.get_records_by_month(now.year, now.month)[0]["description"] == "晚饭"
+    window.switch_to(REVIEW, animate=False)
     assert [r.description.full_text() for r in page.rows()] == ["晚饭"]
     for _ in range(8):
         window.switch_to(REVIEW, animate=False)
