@@ -1,5 +1,7 @@
 # Cashing Design Philosophy Specification
 
+> 2026-09-30：PC Student edition 的限定变更见 [设计修订](Student_Edition_Amendment.md)，该修订在列明范围内优先。
+
 **Document type:** Product & Interaction Design Philosophy  
 **Project:** Cashing  
 **Version:** 1.0  

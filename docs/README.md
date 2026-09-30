@@ -4,7 +4,7 @@
 
 ## 权威性与冲突处理
 
-设计约束的优先级沿用原规范：
+2026-09-30 起，[Student edition 限定修订](design/Student_Edition_Amendment.md)在其列明范围内优先。其余设计约束的优先级沿用原规范：
 
 1. [设计哲学](design/Cashing_Design_Philosophy_v1.0.md)
 2. [信息架构](design/Cashing_Information_Architecture_v1.0.md)

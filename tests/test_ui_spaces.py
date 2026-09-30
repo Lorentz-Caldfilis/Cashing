@@ -24,7 +24,7 @@ def settled(qtbot, window):
 
 def test_starts_in_capture_with_dots_and_only_the_right_edge(window):
     assert window.current_index() == CAPTURE
-    assert window.dots._index == CAPTURE
+    assert window.navigation._index == CAPTURE
     assert window.right_edge.isVisible() and not window.left_edge.isVisible()
     assert window.spaces.page(REVIEW).x() == window.spaces.width()
 
@@ -35,7 +35,7 @@ def test_alt_arrows_switch_and_never_wrap(window, qtbot):
     settled(qtbot, window)
     assert window.current_index() == REVIEW
     assert window.spaces.offset == window.spaces.width()
-    assert window.dots._index == REVIEW
+    assert window.navigation._index == REVIEW
     assert window.left_edge.isVisible() and not window.right_edge.isVisible()
     qtbot.keyClick(window, Qt.Key.Key_Right, Qt.KeyboardModifier.AltModifier)
     settled(qtbot, window)
@@ -61,7 +61,7 @@ def test_plain_arrows_edit_text_and_never_switch(window, qtbot):
 
 
 def test_dots_and_edges_switch(window, qtbot):
-    qtbot.mouseClick(window.dots, Qt.MouseButton.LeftButton, pos=QPoint(36, 12))
+    qtbot.mouseClick(window.navigation.buttons[1], Qt.MouseButton.LeftButton)
     settled(qtbot, window)
     assert window.current_index() == REVIEW
     qtbot.mouseClick(window.left_edge, Qt.MouseButton.LeftButton)
@@ -70,7 +70,7 @@ def test_dots_and_edges_switch(window, qtbot):
     qtbot.mouseClick(window.right_edge, Qt.MouseButton.LeftButton)
     settled(qtbot, window)
     assert window.current_index() == REVIEW
-    qtbot.mouseClick(window.dots, Qt.MouseButton.LeftButton, pos=QPoint(12, 12))
+    qtbot.mouseClick(window.navigation.buttons[0], Qt.MouseButton.LeftButton)
     settled(qtbot, window)
     assert window.current_index() == CAPTURE
 
@@ -136,8 +136,8 @@ def test_overlays_follow_the_window(window, qtbot):
     window.resize(720, 560)
     qtbot.wait(20)
     central = window.centralWidget()
-    assert abs(window.dots.x() + window.dots.width() // 2 - central.width() // 2) <= 1
-    assert window.dots.y() + window.dots.height() == central.height() - DOTS_BOTTOM
+    assert abs(window.navigation.x() + window.navigation.width() // 2 - central.width() // 2) <= 1
+    assert window.navigation.y() + window.navigation.height() == central.height() - DOTS_BOTTOM
     assert window.right_edge.x() + window.right_edge.width() == central.width()
 
 
@@ -157,7 +157,17 @@ def test_both_spaces_share_one_axis_and_one_footer_band(window, qtbot, database)
     centre = central.width() / 2
     column = page.column.mapTo(central, page.column.rect().center())
     assert abs(column.x() + 0.5 - centre) <= 1  # with the scroll bar showing
-    assert abs(window.dots.geometry().center().x() + 0.5 - centre) <= 1
+    assert abs(window.navigation.geometry().center().x() + 0.5 - centre) <= 1
     viewport = page.scroll.viewport()
     bottom = viewport.mapTo(central, viewport.rect().bottomLeft()).y()
-    assert bottom < central.height() - FOOTER_HEIGHT <= window.dots.y()
+    assert bottom < central.height() - FOOTER_HEIGHT <= window.navigation.y()
+
+
+def test_named_navigation_is_keyboard_accessible_and_selected(window, qtbot):
+    assert [b.text() for b in window.navigation.buttons] == ["记一笔", "看账单"]
+    button = window.navigation.buttons[1]
+    button.setFocus()
+    qtbot.keyClick(button, Qt.Key.Key_Space)
+    settled(qtbot, window)
+    assert window.current_index() == REVIEW
+    assert button.isChecked() and not window.navigation.buttons[0].isChecked()

@@ -1,14 +1,14 @@
 """Capture ⇄ Review: two full-window spaces side by side, a short horizontal slide between them.
 
 The spatial relation is fixed (Capture left, Review right, no wrap). Position is
-shown by two wordless dots; the edges of the window and Alt+←/→ move between
+shown by two named navigation buttons; the edges of the window and Alt+←/→ move between
 the spaces; a horizontal trackpad scroll does too. Plain ←/→ are never used —
 they belong to text editing.
 """
 import time
 from PySide6.QtCore import Qt, QObject, QEvent, QPropertyAnimation, Property, Signal, QRectF
 from PySide6.QtGui import QPainter, QColor, QPen, QPainterPath
-from PySide6.QtWidgets import QWidget, QApplication
+from PySide6.QtWidgets import QWidget, QApplication, QHBoxLayout, QPushButton
 from ui import motion, theme
 
 SLIDE_MS = motion.SPACE
@@ -16,7 +16,7 @@ EDGE_WIDTH = 28
 # The window's bottom band: where the page dots live, in both spaces. Content never scrolls
 # into it, so the dots are never drawn over a record; the dots sit on its middle line.
 FOOTER_HEIGHT = 64
-DOTS_HEIGHT = 24
+DOTS_HEIGHT = 40
 WHEEL_THRESHOLD = 150   # accumulated angleDelta().x() units (one notch = 120)
 WHEEL_COOLDOWN_S = 0.5
 WHEEL_GESTURE_GAP_S = 0.3
@@ -99,42 +99,41 @@ class SpaceSwitcher(QWidget):
         self._relayout()
 
 
-class PageDots(QWidget):
-    """● ○ — position feedback, clickable but not a button."""
+class SpaceNavigation(QWidget):
+    """Stable, named destinations; native buttons expose focus and selected state."""
     activated = Signal(int)
 
-    def __init__(self, count, parent=None):
+    def __init__(self, count=2, parent=None):
         super().__init__(parent)
-        self._count = count
         self._index = 0
-        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
-        self.setFixedSize(count * 24, DOTS_HEIGHT)
-        self.setAccessibleName("页面位置")
+        self.setObjectName("navigation")
+        self.setFixedSize(232, DOTS_HEIGHT)
+        self.setAccessibleName("切换空间")
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(4)
+        self.buttons = []
+        for index, (name, shortcut) in enumerate((("记一笔", "Alt+←"), ("看账单", "Alt+→"))):
+            button = QPushButton(name)
+            button.setObjectName("spaceTab")
+            button.setCheckable(True)
+            button.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.setToolTip(f"{name} · {shortcut}")
+            button.clicked.connect(lambda checked=False, i=index: self._activate(i))
+            layout.addWidget(button)
+            self.buttons.append(button)
+        self.set_index(0)
+
+    def _activate(self, index):
+        # The window owns navigation and may refuse an invalid unfinished edit.
+        self.set_index(self._index)
+        self.activated.emit(index)
 
     def set_index(self, index):
         self._index = index
-        self.update()
-
-    def index_at(self, x):
-        return max(0, min(x // 24, self._count - 1))
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(Qt.PenStyle.NoPen)
-        for i in range(self._count):
-            current = i == self._index
-            painter.setBrush(QColor(theme.ACCENT if current else "#cfd5db"))
-            radius = 4.0 if current else 3.5
-            cx, cy = i * 24 + 12, 12
-            painter.drawEllipse(QRectF(cx - radius, cy - radius, 2 * radius, 2 * radius))
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.activated.emit(self.index_at(int(event.position().x())))
-        event.accept()
+        for i, button in enumerate(self.buttons):
+            button.setChecked(i == index)
 
 
 class EdgeZone(QWidget):

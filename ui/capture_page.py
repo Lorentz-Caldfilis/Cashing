@@ -8,14 +8,15 @@ from datetime import datetime
 from PySide6.QtCore import (
     Qt, Signal, QTimer, QRegularExpression, QPoint, QPointF, QSize, QDateTime, QDate, QRectF, QEvent,
 )
-from PySide6.QtGui import QRegularExpressionValidator, QFontMetrics, QPainter, QColor, QPen
+from PySide6.QtGui import QRegularExpressionValidator, QFontMetrics, QPainter, QColor, QPen, QKeySequence
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QFrame,
-    QDateTimeEdit, QSizePolicy,
+    QDateTimeEdit, QSizePolicy, QApplication,
 )
 from database import DatabaseError
 from domain import parse_amount, format_amount, cents_to_input, describe_time, MAX_DESCRIPTION
 from draft import Draft
+from quick_entry import parse_quick_entry
 from ui import motion, theme
 from ui.controls import QuietDateTimeEdit, DATE_TEXT_NUDGE
 
@@ -33,7 +34,7 @@ CURRENCY_GAP = 4
 # the right of the box that holds it. On top of the caret's own room the pair is set this
 # far further left, so that what the eye weighs as the number lands on the axis.
 CURRENCY_OPTICAL = 2
-RECORD_WIDTH, RECORD_HEIGHT = 96, 34
+RECORD_WIDTH, RECORD_HEIGHT = 120, 40
 RECORD_RADIUS = 5
 RECORD_TEXT_LIFT = 1     # CJK has no descender: centring the line box sets the word a touch low
 # The time layer speaks the app's date language (the same words as the time it edits) and is
@@ -124,6 +125,7 @@ class AmountEdit(QuietLineEdit):
 
     def __init__(self, parent=None):
         super().__init__(parent, line_width=1.5, line_pad=2, line_lift=8)
+        self.paste_entry = None
         self.setObjectName("amount")
         self.setFont(theme.font(AMOUNT_PX, theme.MEDIUM, tabular=True))
         self.setMaxLength(12)
@@ -136,6 +138,13 @@ class AmountEdit(QuietLineEdit):
         self.setFrame(False)
         self.textChanged.connect(self.updateGeometry)
         self.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed))
+
+    def keyPressEvent(self, event):
+        if (event.matches(QKeySequence.StandardKey.Paste) and self.paste_entry is not None
+                and (not self.text() or self.selectedText() == self.text())):
+            if self.paste_entry(QApplication.clipboard().text()):
+                return
+        super().keyPressEvent(event)
 
     def _follow_emptiness(self, text):
         self.setProperty("empty", "true" if not text else "false")
@@ -367,12 +376,21 @@ class CapturePage(QWidget):
         body.setContentsMargins(0, 0, 0, 0)
         body.setSpacing(0)
 
+        self.heading = QLabel("记下这一笔")
+        self.heading.setFont(theme.font(16, theme.MEDIUM))
+        self.heading.setStyleSheet(f"color: {theme.TEXT_2};")
+        self.heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        body.addWidget(self.heading)
+        body.addSpacing(24)
+
         # Amount ---------------------------------------------------------
         amount_row = QHBoxLayout()
         amount_row.setContentsMargins(0, 0, 0, 0)
         amount_row.setSpacing(0)  # the gap belongs to the mark, not to the layout
         amount_row.addStretch()
         self.amount = AmountEdit()
+        self.amount.paste_entry = self.paste_entry
+        self.amount.setToolTip("可用 Ctrl+V 粘贴一笔，例如：18.5 午饭")
         self.currency = CurrencyMark(CURRENCY_PX, self.amount.sizeHint().height(),
                                      self.amount.baseline_from_bottom())
         amount_row.addWidget(self.currency, 0, Qt.AlignmentFlag.AlignBottom)
@@ -396,11 +414,11 @@ class CapturePage(QWidget):
         self.description.setObjectName("description")
         self.description.setFont(theme.font(17))
         self.description.setMaxLength(MAX_DESCRIPTION)
-        self.description.setPlaceholderText("做了什么")  # a prompt, not a question the software asks
+        self.description.setPlaceholderText("午饭、打印、周末电影…")  # a prompt, not a question the software asks
         self.description.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.description.setAccessibleName("说明")
         self.description.setFrame(False)
-        self.description.setMaximumWidth(320)
+        self.description.setFixedWidth(320)
         self.description.textChanged.connect(self._description_emptiness)
         self._description_emptiness("")
         body.addWidget(self.description, 0, Qt.AlignmentFlag.AlignHCenter)
@@ -420,7 +438,7 @@ class CapturePage(QWidget):
         body.addSpacing(TIME_TO_ACTION)
 
         # Action ---------------------------------------------------------
-        self.record_button = RecordButton("记录")
+        self.record_button = RecordButton("记一笔")
         self.record_button.setFocusPolicy(Qt.FocusPolicy.TabFocus)  # a failed click leaves the input focused
         self.record_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.record_button.setFixedSize(RECORD_WIDTH, RECORD_HEIGHT)
@@ -428,6 +446,12 @@ class CapturePage(QWidget):
         self.record_button.setEnabled(False)
         self.record_button.clicked.connect(self.record)
         body.addWidget(self.record_button, 0, Qt.AlignmentFlag.AlignHCenter)
+        body.addSpacing(16)
+        self.keyboard_hint = QLabel("金额  ↵  说明  ↵  保存 · 支持粘贴一笔")
+        self.keyboard_hint.setFont(theme.font(12))
+        self.keyboard_hint.setStyleSheet(f"color: {theme.TEXT_3};")
+        self.keyboard_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        body.addWidget(self.keyboard_hint)
         body.addSpacing(12)
         self.save_error = QLabel()
         self.save_error.setObjectName("error")
@@ -513,6 +537,22 @@ class CapturePage(QWidget):
             self.description.setCursorPosition(len(self.description.text()))
         else:
             self.amount.setFocus()
+
+    def paste_entry(self, text):
+        """A complete pasted entry is reviewable input, never an automatic save."""
+        try:
+            entry = parse_quick_entry(text)
+        except ValueError as exc:
+            self.amount_error.setText(str(exc))
+            return True  # rejected as a whole; never paste a truncated prefix
+        if entry.description and self.description.text().strip():
+            self.amount_error.setText("说明已有内容，请先保留或清空后再粘贴一笔")
+            return True
+        self.amount.setText(entry.amount_text)
+        if entry.description:
+            self.description.setText(entry.description)
+        self.description.setFocus()
+        return True
 
     # ---- amount ------------------------------------------------------------
     def _amount_changed(self, text):

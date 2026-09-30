@@ -3,7 +3,7 @@ from pathlib import Path
 from datetime import datetime
 from PySide6.QtCore import QPoint, QUrl, QTimer
 from PySide6.QtGui import QShortcut, QKeySequence, QDesktopServices
-from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QToolButton, QMenu, QMessageBox, QFileDialog
+from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QToolButton, QMenu, QMessageBox, QFileDialog, QLabel
 from draft import DraftStore
 from database import DatabaseError
 from ledger import Ledger
@@ -12,7 +12,7 @@ from ui.capture_page import CapturePage
 from ui.controls import MoreButton
 from ui.review_page import ReviewPage, HEADER_LINE
 from ui.spaces import (
-    SpaceSwitcher, PageDots, EdgeZone, WheelNavigator, EDGE_WIDTH, FOOTER_HEIGHT, DOTS_HEIGHT,
+    SpaceSwitcher, SpaceNavigation, EdgeZone, WheelNavigator, EDGE_WIDTH, FOOTER_HEIGHT, DOTS_HEIGHT,
 )
 from ui.toast import Toast
 
@@ -60,8 +60,16 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         # Window-level overlays: stable positions regardless of the space shown.
-        self.dots = PageDots(2, central)
-        self.dots.activated.connect(self.switch_to)
+        self.brand = QLabel("Cashing", central)
+        self.brand.setFont(theme.font(18, theme.MEDIUM))
+        self.brand.setStyleSheet(f"color: {theme.TEXT_2}; background: transparent;")
+        self.brand.adjustSize()
+        self.local_note = QLabel("仅存本机 · 无需联网", central)
+        self.local_note.setFont(theme.font(12))
+        self.local_note.setStyleSheet(f"color: {theme.TEXT_3}; background: transparent;")
+        self.local_note.adjustSize()
+        self.navigation = SpaceNavigation(2, central)
+        self.navigation.activated.connect(self.switch_to)
         self.left_edge = EdgeZone(-1, central)
         self.left_edge.activated.connect(lambda: self.switch_to(CAPTURE))
         self.right_edge = EdgeZone(+1, central)
@@ -86,6 +94,7 @@ class MainWindow(QMainWindow):
         self.capture.changed.connect(self.review.refresh)
         QShortcut(QKeySequence("Alt+Right"), self, activated=lambda: self.switch_to(REVIEW))
         QShortcut(QKeySequence("Alt+Left"), self, activated=lambda: self.switch_to(CAPTURE))
+        QShortcut(QKeySequence("Ctrl+Alt+Z"), self, activated=self._undo_recent)
         self.wheel = WheelNavigator(self, self.move_by)
         QApplication.instance().installEventFilter(self.wheel)
         self._draft_timer = QTimer(self)
@@ -115,13 +124,17 @@ class MainWindow(QMainWindow):
             # slide as they are, and nothing re-lays out during the transition.
             self.review.refresh()
         self.spaces.set_index(index, animate)
-        self.dots.set_index(index)
+        self.navigation.set_index(index)
         self._update_overlays()
         if index == CAPTURE:
             self.capture.focus_default()
         else:
             self.review.setFocus()
         return True
+
+    def _undo_recent(self):
+        if self.toast.can_undo():
+            self.toast._run_undo()
 
     def notify(self, text, undo=None, *, danger=False):
         self.toast.show_message(text, undo, danger=danger)
@@ -170,6 +183,9 @@ class MainWindow(QMainWindow):
         return True
 
     def closeEvent(self, event):
+        if not self.review.prepare_leave():
+            event.ignore()
+            return
         if not self._save_draft():
             event.ignore()
             return
@@ -180,7 +196,10 @@ class MainWindow(QMainWindow):
     def _update_overlays(self):
         central = self.centralWidget()
         width, height = central.width(), central.height()
-        self.dots.move((width - self.dots.width()) // 2, height - DOTS_BOTTOM - self.dots.height())
+        self.brand.move(28, HEADER_LINE - self.brand.height() // 2)
+        self.local_note.move(28, height - (FOOTER_HEIGHT + self.local_note.height()) // 2)
+        self.local_note.setVisible(width >= 760)
+        self.navigation.move((width - self.navigation.width()) // 2, height - DOTS_BOTTOM - self.navigation.height())
         self.left_edge.setGeometry(0, 56, EDGE_WIDTH, max(0, height - 112))
         self.right_edge.setGeometry(width - EDGE_WIDTH, 56, EDGE_WIDTH, max(0, height - 112))
         index = self.spaces.current_index()
@@ -188,7 +207,7 @@ class MainWindow(QMainWindow):
         self.right_edge.setVisible(index < REVIEW)
         # On the header's line (month, search) rather than just above it; the same place in both spaces.
         self.utility.move(width - self.utility.width() - 16, HEADER_LINE - self.utility.height() // 2)
-        for overlay in (self.left_edge, self.right_edge, self.dots, self.utility, self.toast):
+        for overlay in (self.left_edge, self.right_edge, self.navigation, self.utility, self.toast, self.brand, self.local_note):
             overlay.raise_()
         self.toast.reposition()
 

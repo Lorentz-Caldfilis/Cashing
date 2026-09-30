@@ -293,3 +293,31 @@ def test_failed_draft_write_keeps_window_open(window, monkeypatch):
     assert window.capture.amount.text() == "20"
     assert "草稿未能保存" in window.toast.label.text()
     monkeypatch.undo()
+
+
+def test_long_notification_fits_window_and_keyboard_undo_works(window, qtbot, database):
+    capture = window.capture
+    capture.amount.setText("12")
+    capture.description.setText("合成说明" * 50)
+    capture.record()
+    assert window.toast.width() <= window.centralWidget().width()
+    qtbot.keyClick(capture.amount, Qt.Key.Key_Z,
+                   Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)
+    assert stored(database) == []
+    assert capture.description.text() == "合成说明" * 50
+
+
+def test_paste_expense_is_reviewable_and_never_overwrites_description(window, qtbot, database):
+    from PySide6.QtWidgets import QApplication
+    capture = window.capture
+    QApplication.clipboard().setText("￥２８．５０ 食堂午饭")
+    qtbot.keyClick(capture.amount, Qt.Key.Key_V, Qt.KeyboardModifier.ControlModifier)
+    assert capture.amount.text() == "28.50"
+    assert capture.description.text() == "食堂午饭"
+    assert stored(database) == []
+    capture.amount.selectAll()
+    QApplication.clipboard().setText("12 打印")
+    qtbot.keyClick(capture.amount, Qt.Key.Key_V, Qt.KeyboardModifier.ControlModifier)
+    assert capture.description.text() == "食堂午饭"
+    assert capture.amount.text() == "28.50"
+    assert "说明已有内容" in capture.amount_error.text()

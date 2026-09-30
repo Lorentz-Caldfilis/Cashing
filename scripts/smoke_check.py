@@ -6,6 +6,7 @@ restart check (persistence + draft) on the second run in the same directory.
 """
 import json
 import socket
+import sys
 import traceback
 from datetime import datetime
 from PySide6.QtCore import QTimer, Qt, QPoint
@@ -18,7 +19,9 @@ DRAFT_AMOUNT, DRAFT_TEXT = "12.5", "自动验收草稿"
 
 
 def schedule_smoke_check(app, window, database, directory):
-    result = {"status": "RUNNING", "checks": [], "database": str(database.path),
+    result = {"platform": sys.platform, "qt_platform": app.platformName(),
+              "native_windows": sys.platform == "win32" and app.platformName() == "windows",
+              "status": "RUNNING", "checks": [], "database": str(database.path),
               "device_pixel_ratio": window.devicePixelRatioF(),
               "window_size": [window.width(), window.height()],
               "screen_available": [app.primaryScreen().availableGeometry().width(),
@@ -184,7 +187,11 @@ def schedule_smoke_check(app, window, database, directory):
             reopened = Database(database.path)
             reopened.initialize_database()
             check(reopened.get_month_statistics(2020, 1)["total"] == 1234, "reopen_persistence")
-            check(app.platformName() == "windows", "native_windows_qt_platform")
+            if sys.platform == "win32":
+                check(app.platformName() == "windows", "native_windows_qt_platform")
+            else:
+                check(app.platformName() in ("xcb", "offscreen", "wayland"),
+                      "non_windows_qt_platform_recorded")
             result["status"] = "PASS"
         except Exception:
             result["status"] = "FAIL"

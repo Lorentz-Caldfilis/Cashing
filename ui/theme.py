@@ -25,7 +25,7 @@ BG = "#f7f8fa"          # near white, never pure white over large areas
 SURFACE = "#ffffff"     # real overlays only (toast, popover, menu)
 TEXT = "#1b2430"        # 1 primary
 TEXT_2 = "#4e5b69"      # 2 secondary
-TEXT_3 = "#87909c"      # 3 tertiary — still readable at a glance, never a grey smear
+TEXT_3 = "#657180"      # 3 tertiary — still readable at a glance, never a grey smear
 HAIRLINE = "#e5e8ec"
 HOVER = "#f1f3f6"       # the weakest state: the pointer passed here, nothing more
 PRESSED = "#e5e9ee"     # a press: one clear step below Hover, so the hand is answered
@@ -44,7 +44,7 @@ DISABLED_TEXT = "#98a1ac"
 # Inert, not absent: a month arrow with nowhere to go is still half of the navigation.
 DISABLED_ARROW = "#c3cad3"
 # System accent (focus, selected, current dot, primary action) — not a category
-ACCENT = "#56687c"
+ACCENT = "#405f86"
 ACCENT_HOVER = "#4a5a6c"
 ACCENT_PRESSED = "#3f4e5e"
 ACCENT_SOFT = "#bcc8d5"  # focus line
@@ -52,7 +52,7 @@ ACCENT_SOFT = "#bcc8d5"  # focus line
 # obvious thing to press and to carry white at AA contrast, quiet enough that the amount
 # above it is still the loudest thing on the page. Hover and press walk it back down the
 # accent's own values, so pressing still reads as pressing.
-ACTION = "#66788c"
+ACTION = "#496b94"
 # Edit is said by a thin accent bar beside the record's two lines. The surface under it is
 # only a shade above Hover: enough to hold the record together, never a card laid on the page.
 ACCENT_TINT = "#eef1f5"  # edit background
@@ -90,6 +90,14 @@ STYLE = f"""
 QWidget {{ color: {TEXT}; }}
 QMainWindow, QWidget#space, QWidget#column, QScrollArea, QWidget#scrollBody {{ background: {BG}; }}
 QToolTip {{ background: {SURFACE}; color: {TEXT}; border: 1px solid {HAIRLINE}; padding: 4px 8px; }}
+
+/* Named navigation keeps two spaces discoverable and keyboard reachable. */
+QWidget#navigation {{ background: {HAIRLINE}; border-radius: 10px; }}
+QPushButton#spaceTab {{ background: transparent; color: {TEXT_2}; border: 1px solid transparent;
+    border-radius: 7px; padding: 5px 18px; font-size: 14px; }}
+QPushButton#spaceTab:checked {{ background: {SURFACE}; color: {ACCENT}; font-weight: 500; }}
+QPushButton#spaceTab:hover {{ color: {TEXT}; }}
+QPushButton#spaceTab:focus {{ border-color: {FOCUS_RING}; }}
 
 /* Capture */
 QLineEdit#amount {{
