@@ -1,85 +1,156 @@
-"""Create one clearly named, manifest-checked Windows release from dist/Cashing."""
+"""Build a local Windows candidate; never overwrite an existing delivery.
+
+No upload or publication. All inputs must be synthetic/runtime files. Package
+identity and license provenance are included for reviewers, not legal approval.
+"""
+import argparse
 from importlib import metadata
 from pathlib import Path
 import hashlib
+import json
+import os
+import re
 import shutil
+import subprocess
 import sys
+import tempfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-NAME = "Cashing-v1.1.0-windows"
-SOURCE = ROOT / "dist" / "Cashing"
-RELEASE = ROOT / "release"
-TARGET = RELEASE / NAME / "Cashing"
 
 
 def sha256(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    digest = hashlib.sha256()
+    with path.open('rb') as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def check_runtime(source):
+    required = ['Cashing.exe', f'_internal/python{sys.version_info.major}{sys.version_info.minor}.dll',
+                '_internal/PySide6/plugins/platforms/qwindows.dll',
+                '_internal/PySide6/translations/qtbase_zh_CN.qm']
+    for name in required:
+        if not (source / name).is_file():
+            raise RuntimeError(f'Missing runtime file: {name}')
+    for path in source.rglob('*'):
+        name = path.name.lower()
+        if path.is_symlink() or (hasattr(path, 'is_junction') and path.is_junction()):
+            raise RuntimeError('Runtime must not contain filesystem links')
+        if (re.search(r'\.(db|db3|sqlite|sqlite3)(-|$)', name)
+                or name.endswith(('.log', '.bak', '.pem', '.key', '.pfx', '.p12'))
+                or name in {'draft.json', '.env'} or name.startswith(('.env.', 'credentials', 'secrets'))):
+            raise RuntimeError('Runtime contains data, logs or private configuration')
+
+
+def collect_notices(root, target):
+    licenses = target / 'LICENSES'
+    licenses.mkdir()
+    provenance_root = root / 'third_party'
+    sources = json.loads((provenance_root / 'sources.json').read_text('utf-8'))
+    if not sources:
+        raise RuntimeError('Missing upstream license inventory')
+    for item in sources:
+        source = provenance_root / item['file']
+        if not source.resolve().is_relative_to(provenance_root.resolve()) or sha256(source) != item['sha256']:
+            raise RuntimeError('Upstream license inventory does not match files')
+    shutil.copytree(provenance_root, licenses / 'upstream')
+    inventory = []
+    for dist in sorted(metadata.distributions(), key=lambda d: d.metadata['Name'].lower()):
+        name = dist.metadata['Name']
+        inventory.append({'name': name, 'version': dist.version,
+                          'license': dist.metadata.get('License-Expression') or dist.metadata.get('License'),
+                          'scope': 'build environment; not all packages are bundled'})
+        for path in dist.files or []:
+            if any(p.lower() in {'license', 'licenses'} for p in path.parts) or path.name.upper().startswith(('LICENSE', 'COPYING')):
+                source = Path(dist.locate_file(path))
+                if source.is_file():
+                    # Flatten metadata paths; never permit a wheel ../ path to escape LICENSES.
+                    relative = Path(*[part for part in path.parts if part not in {'.', '..'}])
+                    destination = licenses / name / relative
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(source, destination)
+    python_license = next((Path(sys.base_prefix) / name for name in ('LICENSE.txt', 'LICENSE')
+                           if (Path(sys.base_prefix) / name).is_file()), None)
+    if python_license is None:
+        raise RuntimeError('Python license not found; candidate not packaged')
+    shutil.copy2(python_license, licenses / 'Python-LICENSE.txt')
+    if not any((licenses / 'pyinstaller').rglob('COPYING*')):
+        # importlib metadata normally spells this distribution pyinstaller.
+        if not any(p.name.upper().startswith('COPYING') for p in licenses.rglob('*') if 'pyinstaller' in str(p).lower()):
+            raise RuntimeError('PyInstaller license/bootloader exception not found')
+    (target / 'DEPENDENCIES.json').write_text(json.dumps(inventory, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    shutil.copy2(root / 'docs/THIRD_PARTY.md', target / 'THIRD_PARTY.md')
+
+
+def build_package(root, name, commit):
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,99}', name):
+        raise ValueError('Package name must be a single safe filename')
+    if not re.fullmatch(r'[0-9a-f]{40}', commit):
+        raise ValueError('A full source commit SHA is required')
+    source, release = root / 'dist/Cashing', root / 'release'
+    check_runtime(source)
+    release.mkdir(exist_ok=True)
+    bundle, archive, checksum = release / name, release / (name + '.zip'), release / (name + '.zip.sha256')
+    for path in (bundle, archive, checksum):
+        if path.exists() or path.is_symlink():
+            raise FileExistsError(f'Refusing to overwrite: {path.name}')
+    created = []
+    try:
+        with tempfile.TemporaryDirectory(prefix='.cashing-package-', dir=release) as temporary:
+            stage = Path(temporary)
+            target = stage / 'Cashing'
+            shutil.copytree(source, target)
+            # A standalone guide has no broken repository-relative links.
+            shutil.copy2(root / 'docs/USER_GUIDE.md', target / 'README.md')
+            collect_notices(root, target)
+            (target / 'BUILD_INFO.json').write_text(json.dumps({
+                'source_commit': commit, 'package': name, 'python': sys.version,
+                'pyside6': metadata.version('PySide6'), 'candidate_only': True,
+                'source_license': 'No public source license granted by this candidate',
+            }, indent=2) + '\n', encoding='utf-8')
+            files = sorted(p for p in target.rglob('*') if p.is_file() and p.name != 'MANIFEST.sha256')
+            (target / 'MANIFEST.sha256').write_text(''.join(
+                f'{sha256(p)}  {p.relative_to(target).as_posix()}\n' for p in files), encoding='utf-8')
+            stage_zip = stage / 'candidate.zip'
+            with zipfile.ZipFile(stage_zip, 'x', zipfile.ZIP_DEFLATED, compresslevel=6) as output:
+                for path in sorted(target.rglob('*')):
+                    if path.is_file():
+                        output.write(path, path.relative_to(stage).as_posix())
+            with zipfile.ZipFile(stage_zip) as output:
+                if output.testzip():
+                    raise RuntimeError('ZIP CRC verification failed')
+            stage_checksum = stage / 'checksum.txt'
+            stage_checksum.write_text(f'{sha256(stage_zip)}  {archive.name}\n', encoding='utf-8')
+            # Reserve the directory and exclusively publish files on the same filesystem.
+            bundle.mkdir()
+            created.append(bundle)
+            target.rename(bundle / 'Cashing')
+            os.link(stage_zip, archive)
+            created.append(archive)
+            os.link(stage_checksum, checksum)
+            created.append(checksum)
+    except BaseException:
+        for path in reversed(created):
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink(missing_ok=True)
+        raise
+    return archive
 
 
 def main():
-    required = ["Cashing.exe", "_internal/python314.dll",
-                "_internal/PySide6/plugins/platforms/qwindows.dll",
-                "_internal/PySide6/translations/qtbase_zh_CN.qm"]
-    for name in required:
-        if not (SOURCE/name).is_file():
-            raise RuntimeError(f"Missing runtime file: {name}")
-    forbidden = [p for p in SOURCE.rglob("*") if p.suffix.lower() in {".db",".sqlite",".sqlite3",".log"}]
-    if forbidden:
-        raise RuntimeError("Release directory contains data or logs")
-    if TARGET.parent.exists():
-        raise FileExistsError(f"Refusing to overwrite an existing release: {TARGET.parent}")
-    shutil.copytree(SOURCE, TARGET)
-    # Replace any old copied documentation with the current user guide.
-    shutil.copy2(ROOT/"README.md", TARGET/"README.md")
-    old_report = TARGET/"VALIDATION.md"
-    if old_report.exists():
-        old_report.unlink()  # Only the just-created release copy, never user data.
-    licenses = TARGET/"LICENSES"
-    licenses.mkdir(exist_ok=True)
-    notices = ["Cashing v1.1.0 third-party dependency notices",
-               "The following license declarations are copied from installed package metadata.",
-               "Python and Qt are bundled as separate runtime libraries; do not remove _internal.",
-               ""]
-    packages = ["PySide6","PySide6_Essentials","PySide6_Addons","shiboken6"]
-    for name in packages:
-        dist = metadata.distribution(name)
-        license_text = dist.metadata.get("License-Expression") or dist.metadata.get("License") or "See supplied license files"
-        notices.append(f"{dist.metadata['Name']} {dist.version}: {license_text}")
-        for path in dist.files or []:
-            if any(part.lower() in {"licenses","license"} for part in path.parts) or path.name.upper().startswith(("LICENSE","COPYING")):
-                source = Path(dist.locate_file(path))
-                if source.is_file():
-                    target = licenses/name/Path(*path.parts)
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(source,target)
-    python_license=Path(sys.base_prefix)/"LICENSE.txt"
-    if not python_license.exists():
-        python_license=Path(sys.base_prefix)/"LICENSE"
-    if python_license.exists():
-        shutil.copy2(python_license,licenses/"Python-LICENSE.txt")
-    (TARGET/"THIRD_PARTY_NOTICES.txt").write_text("\n".join(notices)+"\n",encoding="utf-8")
-    (TARGET/"打开程序.txt").write_text(
-        "双击 Cashing.exe。请保留整个 Cashing 文件夹和 _internal。\n"
-        "无需安装 Python，start.bat 仅用于源码开发。\n"
-        "账单保存于 %LOCALAPPDATA%\\Cashing\\ledger.sqlite3。\n",encoding="utf-8")
-    files=sorted(p for p in TARGET.rglob("*") if p.is_file())
-    manifest="".join(f"{sha256(p)}  {p.relative_to(TARGET).as_posix()}\n" for p in files)
-    (TARGET/"MANIFEST.sha256").write_text(manifest,encoding="utf-8")
-    archive=RELEASE/(NAME+".zip")
-    with zipfile.ZipFile(archive,"w",zipfile.ZIP_DEFLATED,compresslevel=6) as output:
-        for p in sorted(TARGET.rglob("*")):
-            if p.is_file():
-                output.write(p,p.relative_to(TARGET.parent).as_posix())
-    with zipfile.ZipFile(archive) as output:
-        if output.testzip():
-            raise RuntimeError("ZIP CRC verification failed")
-    checksum=RELEASE/(NAME+".zip.sha256")
-    checksum.write_text(f"{sha256(archive)}  {archive.name}\n",encoding="utf-8")
-    print("EXE:",TARGET/"Cashing.exe")
-    print("ZIP:",archive)
-    print("SHA256:",sha256(archive))
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--name', help='Candidate name; defaults to the exact commit prefix')
+    args = parser.parse_args()
+    commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+    if subprocess.run(['git', 'diff', '--quiet', 'HEAD'], cwd=ROOT).returncode:
+        parser.error('Commit tracked source changes before packaging')
+    archive = build_package(ROOT, args.name or f'Cashing-candidate-{commit[:12]}-windows', commit)
+    print(json.dumps({'archive': str(archive), 'sha256': sha256(archive), 'source_commit': commit}))
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

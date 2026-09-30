@@ -34,3 +34,20 @@ Actions 引用完整提交哈希，凭据不保留到 checkout，仅申请读取
 未改变拒绝覆盖或失败清理语义。另关闭测试中的两次 SQLite 连接，兼容 Python 3.14 资源警告检查。
 新增 flush 失败不发布、不改原账本回归；Linux 定向 6 项通过。Windows 结果等待后续 run。
 回退：revert 本次提交会恢复 Windows 备份失败，因此仅用于定位，不建议用于候选。
+
+Windows 修复验证：[run 36754896519](https://github.com/Lorentz-Caldfilis/Cashing/actions/runs/36754896519)
+精确源码 `36f04b1809b9ef01bb2f4f26e3b8fce02c1e95cd`，282 tests passed / 18.34s；
+源码 5 次 GUI、解压 EXE 5 次 GUI、默认数据目录两次启动和安装 manifest 不变检查通过。
+候选 ZIP SHA-256 `733dfaaafcd71705518ca16d48388d4e3fc82092172d8c3313b1adf923cd2006`。
+此运行仍是旧打包脚本，不覆盖下一批许可证与打包安全改动。
+
+## 打包安全与可核对来源
+
+下一批打包器改为 commit 命名、包内 BUILD_INFO、完整文件摘要及独立使用指南。
+拒绝已有目录/ZIP/摘要、数据库 journal/WAL、草稿、日志、常见凭据文件与链接；
+暂存完成后不覆盖发布，失败清理本次输出，保留其他包。DLL 名从构建 Python 版本计算。
+许可证从实际 distribution 和精确 Qt/PySide6 v6.11.2 上游收集；134 份文本/attribution
+及其来源摘要保存在 third_party。缺少 Python 或 PyInstaller 授权文本时打包失败。
+这不改变项目许可，不等于完成公开再分发义务，详见 THIRD_PARTY.md。
+Linux 定向打包/备份回归 21 项通过；Windows 新包验收待运行。
+回退：revert 本批提交恢复旧打包入口，不修改用户数据；旧候选包不要据此公开发行。

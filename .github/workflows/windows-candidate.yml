@@ -42,13 +42,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
           .\.venv\Scripts\python.exe scripts/verify_release.py --phase source --label ci-source
           if ($LASTEXITCODE -ne 0) { throw 'Source GUI verification failed' }
-      - name: Build and package private candidate
+      - name: Build and package candidate
         shell: pwsh
         run: |
           ./build.ps1
           .\.venv\Scripts\python.exe scripts/package_release.py
           if ($LASTEXITCODE -ne 0) { throw 'Packaging failed' }
-          Expand-Archive -LiteralPath release/Cashing-v1.1.0-windows.zip -DestinationPath work/extracted
+          $commit = git rev-parse HEAD
+          $name = "Cashing-candidate-$($commit.Substring(0,12))-windows"
+          Expand-Archive -LiteralPath "release/$name.zip" -DestinationPath work/extracted
           .\.venv\Scripts\python.exe scripts/verify_release.py --phase frozen --install work/extracted/Cashing --label ci-extracted
           if ($LASTEXITCODE -ne 0) { throw 'Extracted GUI verification failed' }
       - name: Keep verification evidence and candidate
