@@ -32,3 +32,11 @@ Checkpoint：`58aba2a`，应用/构建实证 `0623c05`。不改 schema、个人�
 - 界面只有发现实际可用性缺口才改，继续保持安静、两空间、本地和低负担。
 
 所有新挑战集仍是作者合成、与旧语料独立，不代表真实用户或独立盲测。每批记录动机与 git revert 回退方式。
+
+## 优先处理第三阶段审查：打包输入白名单
+
+审查指出验证 sources.json 后复制整个 third_party，会带入未列入清单的本地文件。
+改为只复制验证后的文件字节与规范化 inventory；拒绝链接、重复（含大小写）、绝对/越界/非规范路径，
+最终 staging 再执行私密文件检查。真实 collect_notices 集成回归包含未跟踪 draft/private notes、
+被列入白名单的 draft、symlink 与 unsafe/duplicate paths；未 stub collector，Python license 使用合成位置。
+定向打包 31 项通过。此修改无应用/schema 影响，可独立 git revert；Windows 验证随下一批合并运行。

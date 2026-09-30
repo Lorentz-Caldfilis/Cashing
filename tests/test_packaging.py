@@ -9,6 +9,7 @@ from scripts import package_release as package
 
 SHA = 'a' * 40
 NAME = 'Cashing-test-candidate'
+REAL_COLLECT_NOTICES = package.collect_notices
 
 
 @pytest.fixture
@@ -127,3 +128,80 @@ def test_verifier_rejects_extra_modified_or_unsafe_package_files(root, tamper):
         manifest.write_text(manifest.read_text() * 2)
     with pytest.raises(ValueError):
         verify_manifest(install)
+
+
+@pytest.fixture
+def notice_root(root, monkeypatch):
+    """Real collector, real installed metadata; only Python license location is synthetic."""
+    monkeypatch.setattr(package, 'collect_notices', REAL_COLLECT_NOTICES)
+    (root / 'docs/THIRD_PARTY.md').write_text('Synthetic notice fixture')
+    upstream = root / 'third_party'
+    upstream.mkdir()
+    license_file = upstream / 'LICENSE.txt'
+    license_file.write_text('Synthetic upstream license fixture')
+    (upstream / 'sources.json').write_text(json.dumps([{
+        'file': 'LICENSE.txt', 'sha256': package.sha256(license_file),
+        'source': 'https://example.invalid/synthetic-license'}]))
+    python = root / 'synthetic-python'
+    python.mkdir()
+    (python / 'LICENSE').write_text('Synthetic Python license fixture')
+    monkeypatch.setattr(package.sys, 'base_prefix', str(python))
+    return root
+
+
+def test_real_collector_excludes_unlisted_private_files(notice_root):
+    root = notice_root
+    (root / 'third_party/draft.json').write_text('synthetic private draft')
+    (root / 'third_party/private-notes.txt').write_text('synthetic private notes')
+    archive = package.build_package(root, NAME, SHA)
+    with zipfile.ZipFile(archive) as z:
+        names = z.namelist()
+        assert not any('draft.json' in n or 'private-notes.txt' in n for n in names)
+        assert 'Cashing/LICENSES/upstream/LICENSE.txt' in names
+        assert 'Cashing/LICENSES/Python-LICENSE.txt' in names
+        assert any('pyinstaller' in n.lower() and 'COPYING' in n for n in names)
+
+
+@pytest.mark.parametrize('path', ['../outside.txt', '/absolute.txt', 'C:/absolute.txt', 'a\\b.txt', 'a/../b.txt'])
+def test_real_collector_rejects_unsafe_allowlist_paths(notice_root, path):
+    inventory = notice_root / 'third_party/sources.json'
+    inventory.write_text(json.dumps([{'file': path, 'sha256': '0' * 64}]))
+    with pytest.raises(RuntimeError, match='Unsafe'):
+        package.build_package(notice_root, NAME, SHA)
+    assert not list((notice_root / 'release').iterdir())
+
+
+def test_real_collector_rejects_casefold_duplicates(notice_root):
+    inventory = notice_root / 'third_party/sources.json'
+    item = json.loads(inventory.read_text())[0]
+    inventory.write_text(json.dumps([item, dict(item, file='license.TXT')]))
+    with pytest.raises(RuntimeError, match='duplicate'):
+        package.build_package(notice_root, NAME, SHA)
+
+
+def test_final_scan_rejects_private_data_even_if_allowlisted(notice_root):
+    upstream = notice_root / 'third_party'
+    draft = upstream / 'draft.json'
+    draft.write_text('synthetic private data')
+    (upstream / 'sources.json').write_text(json.dumps([
+        {'file': 'draft.json', 'sha256': package.sha256(draft)}]))
+    with pytest.raises(RuntimeError, match='data, logs'):
+        package.build_package(notice_root, NAME, SHA)
+    assert not list((notice_root / 'release').iterdir())
+
+
+@pytest.mark.parametrize('listed', [True, False])
+def test_real_collector_rejects_links(notice_root, listed):
+    root = notice_root
+    link = root / 'third_party' / ('LICENSE.txt' if listed else 'unlisted.txt')
+    if listed:
+        link.unlink()
+    outside = root / 'outside.txt'
+    outside.write_text('synthetic outside data')
+    try:
+        link.symlink_to(outside)
+    except OSError:
+        pytest.skip('Host does not permit creation of filesystem links')
+    with pytest.raises(RuntimeError, match='links'):
+        package.build_package(root, NAME, SHA)
+    assert not list((root / 'release').iterdir())

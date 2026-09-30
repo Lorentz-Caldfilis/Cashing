@@ -5,7 +5,7 @@ identity and license provenance are included for reviewers, not legal approval.
 """
 import argparse
 from importlib import metadata
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import hashlib
 import json
 import os
@@ -50,14 +50,36 @@ def collect_notices(root, target):
     licenses = target / 'LICENSES'
     licenses.mkdir()
     provenance_root = root / 'third_party'
+    # Reject links even when unlisted: never follow local additions into a package.
+    for path in [provenance_root, *provenance_root.rglob('*')]:
+        if path.is_symlink() or (hasattr(path, 'is_junction') and path.is_junction()):
+            raise RuntimeError('Upstream license inputs must not contain links')
     sources = json.loads((provenance_root / 'sources.json').read_text('utf-8'))
     if not sources:
         raise RuntimeError('Missing upstream license inventory')
+    validated, names = [], set()
     for item in sources:
-        source = provenance_root / item['file']
-        if not source.resolve().is_relative_to(provenance_root.resolve()) or sha256(source) != item['sha256']:
+        name = item['file']
+        relative = PurePosixPath(name)
+        if (not name or relative.is_absolute() or relative.as_posix() != name
+                or any(part in {'.', '..'} for part in relative.parts)
+                or any(char in name for char in ('\\', ':', '\x00', '\n', '\r'))
+                or name.casefold() in names or name.casefold() == 'sources.json'):
+            raise RuntimeError('Unsafe or duplicate upstream license path')
+        names.add(name.casefold())
+        source = provenance_root / name
+        payload = source.read_bytes()
+        if not source.resolve().is_relative_to(provenance_root.resolve()) or hashlib.sha256(payload).hexdigest() != item['sha256']:
             raise RuntimeError('Upstream license inventory does not match files')
-    shutil.copytree(provenance_root, licenses / 'upstream')
+        validated.append((name, payload))
+    # Copy only the checked bytes, not the directory (which may contain local notes).
+    upstream = licenses / 'upstream'
+    upstream.mkdir()
+    for name, payload in validated:
+        destination = upstream / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(payload)
+    (upstream / 'sources.json').write_text(json.dumps(sources, indent=2) + '\n', encoding='utf-8')
     inventory = []
     for dist in sorted(metadata.distributions(), key=lambda d: d.metadata['Name'].lower()):
         name = dist.metadata['Name']
@@ -115,6 +137,7 @@ def build_package(root, name, commit):
                 'pyside6': metadata.version('PySide6'), 'candidate_only': True,
                 'source_license': 'No public source license granted by this candidate',
             }, indent=2) + '\n', encoding='utf-8')
+            check_runtime(target)  # Includes collected notices and every other staged input.
             files = sorted(p for p in target.rglob('*') if p.is_file() and p.name != 'MANIFEST.sha256')
             (target / 'MANIFEST.sha256').write_text(''.join(
                 f'{sha256(p)}  {p.relative_to(target).as_posix()}\n' for p in files), encoding='utf-8')
