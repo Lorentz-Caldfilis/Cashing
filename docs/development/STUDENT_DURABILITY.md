@@ -56,3 +56,10 @@ v1/v2 合成账本升级后验证迁移备份仍为原 schema；说明旧程序�
 
 最终 Linux 全量 400 tests / 31.42s，四个 X11 GUI 进程通过；Capture/Review/空态/长错误/恢复分页截图已归档。
 Library 保存未完成：规定上传路径认证 HTTP 401，未返回 IDs；未重复创建或声称保存成功。
+
+## 精确提交 Windows 验收
+
+`4345b843ef5a18c818f7260e81374b9e8cccf550` 的 [run 36762772708](https://github.com/Lorentz-Caldfilis/Cashing/actions/runs/36762772708) 成功：400 tests / 61.89s，5 source GUI + 5 extracted GUI。
+证据 artifact 11119293726 已下载并重新核对 SHA；ZIP/产物摘要、JUnit、源码/解压报告已归档。
+大候选包只记录 Windows 日志内层摘要及 GitHub 外层摘要，未声称本地重新校验大包。
+运行与产物精确对应本提交，后续 docs/evidence 提交不改变应用代码。

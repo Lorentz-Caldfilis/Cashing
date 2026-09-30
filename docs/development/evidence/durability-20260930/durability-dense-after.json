@@ -71,5 +71,6 @@
   "mem_total": "MemTotal:       18440136 kB",
   "qt": "6.11.2",
   "qt_platform": "xcb",
-  "visible_rows": 60
+  "visible_rows": 60,
+  "provenance_note": "commit is base HEAD at measurement; harness untracked; pagination working-tree changes included, later committed as 4345b84"
 }
