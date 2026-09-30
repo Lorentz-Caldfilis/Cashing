@@ -1,0 +1,7 @@
+{
+  "platform": "Linux X11 xcb",
+  "scale": 1,
+  "data": "synthetic only",
+  "source": "bd945e6 + item-boundary and pagination fixes",
+  "library_status": "not saved; required Library upload helper failed authentication HTTP 401; no Library IDs"
+}

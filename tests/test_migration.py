@@ -201,3 +201,21 @@ def test_v2_ledger_gains_the_origin_of_each_category(tmp_path):
     with closing(sqlite3.connect(backup)) as con:
         assert con.execute("PRAGMA user_version").fetchone()[0] == 2
         assert len(con.execute("PRAGMA table_info(records)").fetchall()) == 7
+
+
+def test_migration_backup_can_be_restored_to_fresh_legacy_directory(tmp_path):
+    import shutil
+    path = tmp_path/'ledger.sqlite3'
+    make_v1(path)
+    Database(path).initialize_database()
+    Database(path).add_record(100, datetime(2026,9,30,12,0), None, '升级后的合成记录')
+    restored_dir = tmp_path/'rollback-copy'; restored_dir.mkdir()
+    restored = restored_dir/'ledger.sqlite3'
+    shutil.copyfile(path.with_name(path.name+BACKUP_SUFFIX),restored)
+    with closing(sqlite3.connect(restored)) as con:
+        assert con.execute('PRAGMA user_version').fetchone()[0]==1
+        assert con.execute('PRAGMA integrity_check').fetchone()[0]=='ok'
+        assert con.execute('SELECT * FROM records ORDER BY id').fetchall()==V1_ROWS
+    # Copy remains independently upgradeable; this does not claim execution of a v1 binary.
+    Database(restored).initialize_database()
+    assert len(Database(restored).user_labels())==len(V1_ROWS)

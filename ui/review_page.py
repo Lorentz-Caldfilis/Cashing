@@ -423,6 +423,7 @@ class SearchField(QLineEdit):
 
 
 class ReviewPage(QWidget):
+    PAGE_SIZE = 60  # bound QWidget creation; summaries always include every record
     capture_requested = Signal()
 
     def __init__(self, ledger, notify, parent=None):
@@ -433,6 +434,9 @@ class ReviewPage(QWidget):
         now = datetime.now()
         self.year, self.month = now.year, now.month
         self.view = None
+        self._page_index = 0
+        self._page_context = None
+        self._result_count = 0
         self.editing_row = None
         self._rebuild_after_edit = False
         self._guard = ClickOutsideGuard(self)
@@ -587,6 +591,26 @@ class ReviewPage(QWidget):
         outer.addWidget(self.top_edge)
         outer.addWidget(self.scroll, 1)
         outer.addWidget(self.bottom_edge)
+        self.pager = QWidget()
+        pager_layout = QHBoxLayout(self.pager)
+        pager_layout.setContentsMargins(PAGE_SIDE, 4, PAGE_SIDE, 4)
+        self.page_previous = QPushButton("上一页")
+        self.page_next = QPushButton("下一页")
+        self.page_count = QLabel()
+        self.page_count.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.page_count.setFont(theme.font(12))
+        self.page_count.setStyleSheet(f"color: {theme.TEXT_3};")
+        for button in (self.page_previous, self.page_next):
+            button.setObjectName("quiet")
+        self.page_previous.clicked.connect(lambda: self._change_result_page(-1))
+        self.page_next.clicked.connect(lambda: self._change_result_page(1))
+        pager_layout.addStretch()
+        pager_layout.addWidget(self.page_previous)
+        pager_layout.addWidget(self.page_count)
+        pager_layout.addWidget(self.page_next)
+        pager_layout.addStretch()
+        self.pager.hide()
+        outer.addWidget(self.pager)
         outer.addSpacing(FOOTER_HEIGHT - 1)
         bar = self.scroll.verticalScrollBar()
         # The scroll bar's room is reserved on both sides of its appearance, so the
@@ -676,15 +700,39 @@ class ReviewPage(QWidget):
             self.view = None
             self.summary.show_failure()
             self.history.clear()
+            self.pager.hide()
             self.failure.setText(f"无法读取账单，当前显示可能不完整。{exc}")
             self.failure.show()
             return
         self.failure.hide()
         self.view = view
         self.summary.set_totals(view.totals)
-        self.history.show_groups(view.groups)
+        self._show_records(view.records, ("month", self.year, self.month))
         if keep_scroll:
             self.scroll.verticalScrollBar().setValue(position)
+
+    def _show_records(self, records, context, *, headings_with_year=False):
+        if context != self._page_context:
+            self._page_index = 0
+        self._page_context = context
+        self._result_count = len(records)
+        last = max(0, (len(records) - 1) // self.PAGE_SIZE)
+        self._page_index = min(self._page_index, last)
+        start = self._page_index * self.PAGE_SIZE
+        self.history.show_groups(group_by_day(records[start:start + self.PAGE_SIZE]),
+                                 headings_with_year=headings_with_year)
+        self.pager.setVisible(len(records) > self.PAGE_SIZE)
+        self.page_previous.setEnabled(self._page_index > 0)
+        self.page_next.setEnabled(self._page_index < last)
+        self.page_count.setText(f"{start + 1}–{min(start + self.PAGE_SIZE, len(records))} / {len(records)} 条")
+
+    def _change_result_page(self, delta):
+        if not self.leave():
+            return
+        last = max(0, (self._result_count - 1) // self.PAGE_SIZE)
+        self._page_index = max(0, min(last, self._page_index + delta))
+        self.refresh()
+        self.scroll.verticalScrollBar().setValue(0)
 
     def rows(self):
         return self.history.live_rows()
@@ -704,6 +752,7 @@ class ReviewPage(QWidget):
         self.summary.hide()
         self.failure.hide()
         self.history.clear()
+        self.pager.hide()
         self.no_results.hide()
         self.search_field.clear()
         self.search_field.setFocus()
@@ -740,11 +789,12 @@ class ReviewPage(QWidget):
             records = self.ledger.search(query) if query else []
         except DatabaseError as exc:
             self.history.clear()
+            self.pager.hide()
             self.failure.setText(f"无法读取账单，当前显示可能不完整。{exc}")
             self.failure.show()
             return
         self.failure.hide()
-        self.history.show_groups(group_by_day(records), headings_with_year=True)
+        self._show_records(records, ("search", query), headings_with_year=True)
         self.no_results.setText(f"没有找到“{query}”相关记录" if query and not records else "")
         self.no_results.setVisible(bool(query) and not records)
         if keep_scroll:
@@ -838,8 +888,11 @@ class ReviewPage(QWidget):
         if snapshot["description"]:
             text += f" · {snapshot['description']}"
         self.notify(text, undo=lambda: self._restore(snapshot))
-        motion.collapse(self.history.start_leaving(row), motion.RECORD,
-                        lambda: self.history.forget(row))
+        def finished_delete():
+            self.history.forget(row)
+            if self._result_count > self.PAGE_SIZE:
+                self.refresh(keep_scroll=True)
+        motion.collapse(self.history.start_leaving(row), motion.RECORD, finished_delete)
 
     def _refresh_totals(self):
         if self.searching:

@@ -1,0 +1,75 @@
+{
+  "synthetic": true,
+  "count": 10000,
+  "dense": false,
+  "commit": "8b7db7cb0a22087bfdcbdc601a004e0d0151be10",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "python": "3.12.14",
+  "cpu_count": 5,
+  "measurements": {
+    "initialize": {
+      "seconds": 0.0903,
+      "rss_mib": 17.609375,
+      "rss_delta_mib": 1.62
+    },
+    "month_service": {
+      "seconds": 0.0113,
+      "rss_mib": 19.96484375,
+      "rss_delta_mib": 2.34
+    },
+    "narrow_search_service": {
+      "seconds": 0.0101,
+      "rss_mib": 20.0234375,
+      "rss_delta_mib": 0.05
+    },
+    "broad_search_service": {
+      "seconds": 0.0251,
+      "rss_mib": 20.31640625,
+      "rss_delta_mib": 0.29
+    },
+    "100_state_cycles": {
+      "seconds": 2.0585,
+      "rss_mib": 20.37890625,
+      "rss_delta_mib": 0.06
+    },
+    "backup": {
+      "seconds": 0.008,
+      "rss_mib": 20.5078125,
+      "rss_delta_mib": 0.13
+    },
+    "restored_initialize": {
+      "seconds": 0.0886,
+      "rss_mib": 20.55859375,
+      "rss_delta_mib": 0.04
+    },
+    "gui_start_capture": {
+      "seconds": 3.2915,
+      "rss_mib": 79.2890625,
+      "rss_delta_mib": 34.83
+    },
+    "gui_month": {
+      "seconds": 0.055,
+      "rss_mib": 80.94140625,
+      "rss_delta_mib": 1.62
+    },
+    "gui_narrow_search": {
+      "seconds": 0.066,
+      "rss_mib": 80.47265625,
+      "rss_delta_mib": -0.47
+    },
+    "gui_broad_search": {
+      "seconds": 0.1941,
+      "rss_mib": 85.03125,
+      "rss_delta_mib": 4.56
+    }
+  },
+  "checks": {
+    "100_correction_reset_double_undo": true,
+    "fresh_directory_restore_all_facts_labels_totals": true
+  },
+  "cpu": "AMD EPYC 9V74 80-Core Processor",
+  "mem_total": "MemTotal:       18440136 kB",
+  "qt": "6.11.2",
+  "qt_platform": "xcb",
+  "visible_rows": 60
+}
