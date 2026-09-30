@@ -27,3 +27,10 @@ Actions 引用完整提交哈希，凭据不保留到 checkout，仅申请读取
 无 tag/Release/部署步骤，不更改仓库设置。YAML 已在 Linux 解析；远端结果需另行记录，不能预判成功。
 现有打包许可收集仍需完善，因此 CI 产物仅用于审查验收，不代表可公开再分发。
 回退：revert 本次 workflow 提交即可移除自动检查，不影响账本或 schema。
+
+首个 Windows run [36754597243](https://github.com/Lorentz-Caldfilis/Cashing/actions/runs/36754597243)
+对 `dcb7107` 实际运行：279 passed / 2 failed，尚未执行构建。
+发现 Windows 对只读文件描述符 fsync 报错，改为以 r+b 打开已关闭的临时快照再同步；
+未改变拒绝覆盖或失败清理语义。另关闭测试中的两次 SQLite 连接，兼容 Python 3.14 资源警告检查。
+新增 flush 失败不发布、不改原账本回归；Linux 定向 6 项通过。Windows 结果等待后续 run。
+回退：revert 本次提交会恢复 Windows 备份失败，因此仅用于定位，不建议用于候选。

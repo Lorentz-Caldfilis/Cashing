@@ -175,7 +175,8 @@ class Database:
                         raise DatabaseError("备份完整性检查失败，未生成备份。")
                 finally:
                     backup.close()
-            with temporary.open("rb") as stream:
+            # Windows _commit/FlushFileBuffers needs a writable descriptor.
+            with temporary.open("r+b") as stream:
                 os.fsync(stream.fileno())
             os.link(temporary, target)
             return target

@@ -1,5 +1,6 @@
 """Only synthetic ledgers; backup must preserve facts and never overwrite a file."""
 from datetime import datetime
+from contextlib import closing
 import sqlite3
 import pytest
 from database import Database, DatabaseError
@@ -43,7 +44,7 @@ def test_failed_publish_keeps_ledger_and_cleans_temporary(database, tmp_path, mo
 @pytest.mark.parametrize("version,other_table", [(3, False), (0, True)])
 def test_missing_records_table_is_not_recreated(tmp_path, version, other_table):
     path = tmp_path / "unknown.sqlite3"
-    with sqlite3.connect(path) as con:
+    with closing(sqlite3.connect(path)) as con, con:
         con.execute(f"PRAGMA user_version = {version}")
         if other_table:
             con.execute("CREATE TABLE other_app (value TEXT)")
@@ -51,3 +52,16 @@ def test_missing_records_table_is_not_recreated(tmp_path, version, other_table):
     with pytest.raises(DatabaseError, match="未创建空账本"):
         Database(path).initialize_database()
     assert path.read_bytes() == previous
+
+
+def test_failed_flush_never_publishes_backup(database, tmp_path, monkeypatch):
+    import database as module
+    previous = database.path.read_bytes()
+    def fail(fd):
+        raise OSError("synthetic flush failure")
+    monkeypatch.setattr(module.os, "fsync", fail)
+    with pytest.raises(DatabaseError, match="无法创建备份"):
+        database.backup_to(tmp_path / "backup.sqlite3")
+    assert database.path.read_bytes() == previous
+    assert not (tmp_path / "backup.sqlite3").exists()
+    assert not list(tmp_path.glob(".cashing-backup-*.tmp"))
