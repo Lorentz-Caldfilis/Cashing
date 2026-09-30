@@ -71,3 +71,15 @@ Linux X11 设置 DISPLAY 与 QT_QPA_PLATFORM=xcb；Windows 不设置 xcb。
 旧烟测固定 settle 320ms 后同时判断 index/animation，没有记录哪一项失败，不能据此断言产品或计时根因。
 保留原始失败 JSON/JUnit。烟测改为最多 2s 等待实际目标空间且动画结束，并记录 elapsed/index/animating；
 没有关闭动画、跳过断言或自动重试来掩盖失败。后续 Windows 结果另记。
+
+## 最终 Windows 候选
+
+[run 36765286598](https://github.com/Lorentz-Caldfilis/Cashing/actions/runs/36765286598) 对精确
+`62cff8f8aa67676bd615a150e933fb1f23ed8f1e` 成功：406 tests / 74.51s，5 source GUI、5 extracted GUI，
+默认路径启动/重启持久化通过；401 个 hashed files 加 manifest 自身，安装目录未改变。
+十次导航实际 0.2003–0.2155s，全部到达 Review 且动画结束；这不充分证明首次失败的唯一根因。
+证据 artifact 11120577486 下载并本地复核 SHA；候选 artifact 11120587493 保留至 2026-10-14。
+内层候选 ZIP SHA（来自 Windows 打包日志，未本地下载大包复核）：
+`34b87efb89bb32b6c107252448ee8cda8b3888426915c42aa6f29149ea9d12b2`。
+元数据、JUnit、源码/解压报告、截图、失败轮与文件摘要均在 evidence/startup-journey-20260930。
+后续 docs/evidence-only 提交不重跑构建，也不改变该精确源码的验证范围。

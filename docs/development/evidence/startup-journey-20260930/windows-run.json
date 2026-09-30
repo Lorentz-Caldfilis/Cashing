@@ -1,0 +1,18 @@
+{
+  "commit": "62cff8f8aa67676bd615a150e933fb1f23ed8f1e",
+  "run_id": 36765286598,
+  "job_id": 110057806775,
+  "tests": 406,
+  "test_seconds": 74.51,
+  "source_gui": 5,
+  "extracted_gui": 5,
+  "manifest_hashed_files": 401,
+  "candidate_artifact_id": 11120587493,
+  "candidate_artifact_sha256": "59fbcbb3e71017e147c28bee1818804bb797dbcd6d9c1338bb518f7c3f581154",
+  "inner_zip_sha256": "34b87efb89bb32b6c107252448ee8cda8b3888426915c42aa6f29149ea9d12b2",
+  "inner_hash_source": "Windows packager log, not local binary rehash",
+  "evidence_artifact_id": 11120577486,
+  "evidence_sha256": "4479f9e2ddd7d444e2499be6d93721cf20909edb039b4323a282d5bf3c835e83",
+  "evidence_downloaded_rehashed": true,
+  "artifact_expiration": "2026-10-14"
+}

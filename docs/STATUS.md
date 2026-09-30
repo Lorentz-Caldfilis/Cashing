@@ -3,9 +3,9 @@
 ## 2026-09-30 开发候选
 
 独立分支 `codex/student-edition-20260930`，main 基线 `ebd0c8b`，草稿 [PR #2](https://github.com/Lorentz-Caldfilis/Cashing/pull/2)。
-最新应用源码 `a0d6b95`，后续 docs/evidence 提交不改变应用行为。未改 main、许可或发布资产。
+应用改动 `a0d6b95`，最终烟测/构建源码 `62cff8f`，后续 docs/evidence 提交不改变应用行为。未改 main、许可或发布资产。
 Linux 406 tests / 36.32s，独占 X11 的 100%、重启、125%、150%、200% 五个 GUI 进程通过。
-当前 Windows 精确源码结果见 [启动与最终旅程报告](development/STARTUP_AND_JOURNEY.md)。
+Windows `62cff8f`：406 tests、5 source + 5 extracted GUI、401 hashed files 加 manifest、默认路径重启均通过。精确源码结果见 [启动与最终旅程报告](development/STARTUP_AND_JOURNEY.md)。
 
 原子草稿、单笔粘贴、可逆学习/纠错、本地备份、来源显示、分页完整统计与构建来源验证均已具备。
 固定 DEV/holdout 明确用途覆盖 12/12、6/6，原版 C1/C2 15/15、23/23；均为已知合成回归而非真实准确率。
