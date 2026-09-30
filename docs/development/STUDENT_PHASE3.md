@@ -57,3 +57,14 @@ Linux 定向打包/备份回归 21 项通过；Windows 新包验收待运行。
 解压验收拒绝新增文件、篡改、路径越界与重复 manifest 项，并拒绝复用验收目录。
 打包针对性回归 21 项通过；恢复原仓库换行规则，third_party 例外保持上游原始字节。
 回退：revert 此补强提交仅改变构建/验证工具，不影响 schema 或用户账本。
+
+`7435e666d631f97b67b480f6df70376b7d521868`：Linux 303 passed / 13.58s；
+Windows run [36756167296](https://github.com/Lorentz-Caldfilis/Cashing/actions/runs/36756167296)
+303 passed / 17.44s，源码和解压各 5 次 GUI、默认数据目录两次启动、严格 manifest 检查均成功。
+候选 ZIP SHA-256 `6e0a9c798053c5717fe52e200638a78ce6bc2e3fc63a899a153ad47f37f4120a`。
+固定学生语料重跑：DEV agreement 20/24，明确用途 8/12；holdout agreement 7/12，明确用途 1/6；
+两组错误决定 0，10 条学习/撤回均通过。合成语料不代表真实长期使用。
+
+完整 artifact 约 50 MB，超过本地文件工具 32 MiB 上限；连接器临时 URL 下载返回 HTTP 403。
+为让复核者容易取用截图/JSON，将小型 evidence 与候选 ZIP 分为两个 Actions artifacts；
+仅验证成功才保留候选包，失败时仍保留诊断证据。此调整不改变应用代码或任何权限。
