@@ -1,4 +1,4 @@
 * text=auto eol=lf
 *.bat text eol=crlf
 *.png binary
-third_party/** -text
+third_party/** -text -whitespace
