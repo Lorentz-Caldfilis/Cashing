@@ -8,7 +8,13 @@
 
 本机完整回归 **411 passed、2 skipped**；新增对应源码防篡改测试及定向 UI 回归 **18 passed**。源码五个原生 Windows GUI 流程在明确的 `parser` 模式下通过：系统剪贴板 Win32 OpenClipboard 返回 error 5（拒绝访问），该模式只验证合成粘贴解析，不能算真实系统剪贴板通过。报告 `work/v120-source-limited-01/verification.json`。GitHub CI 保持真实系统剪贴板为默认门槛。
 
-全远端 refs 可达历史模式扫描及 23 张图片复核完成；未见私钥、令牌、SQLite 数据或私人截图。构建、冻结/解压验收、远端 CI 和合并尚待执行，本段不预写完成。人工设备验收仍见 MANUAL_ACCEPTANCE.md。
+全远端 refs 可达历史模式扫描及 23 张图片复核完成；未见私钥、令牌、SQLite 数据或私人截图。人工设备验收仍见 MANUAL_ACCEPTANCE.md。
+
+**合并与完整远端门槛：** [PR #2](https://github.com/Lorentz-Caldfilis/Cashing/pull/2) 已合并，合并提交 `841fd3ee232b398808b0dde292570db1e6cf5202`，本机 main 已同步。精确 head `86742a3715a8dbc93dc8707ac8d4e10e2aab9c59` 的 [Windows CI](https://github.com/Lorentz-Caldfilis/Cashing/actions/runs/36858045053) **success**：415 passed、0 skipped；源码与解压 EXE 各五次 system 模式真实 GUI 流程通过，含用途、背景、图标、真实剪贴板、键盘、重启和缩放。解压安装 397 个 manifest 文件核对与默认数据路径重启通过。合并提交的 Git tree 与已验收 head 完全一致。
+
+**本机冻结证据：** 提交 `86742a3` PyInstaller 构建成功，EXE 版本/版权资源核对通过。候选 ZIP `585924d0f158559bf71e1bcc0341ca4c0ace21618a4e13b84b401ffc9897e3c1`，430 个 manifest 文件。原候选目录与 ZIP 解压副本均通过五次 parser 模式流程、默认路径两次启动及安装目录不变检查（`work/v120-frozen-limited-02/`、`work/v120-extracted-limited-01/`）。第一次原目录验收在返回 Capture 的焦点断言失败，第二次串行重验通过；失败记录保留，不能声称全部尝试无失败。本机系统剪贴板仍没有通过，完整该项证据来自上述 Windows CI。
+
+**公开前旧资产：** v1.0.0/v1.1.0 ZIP 和页面元数据已在隔离目录备份，摘要/CRC 通过，未发现账本/草稿/日志；旧包存在未使用 VirtualKeyboard 插件且许可交付不完整，因此转为私有 draft，保留原资产与标签，公开后不作为公众发行。旧 CI 二进制候选已按名单清除，保留测试证据和本轮含对应源码的候选。最终 1.2.0 交付名称及发布记录在制作后补入，不把历史包重命名冒充新版本。
 
 ## 2026-10-01 本机更新（本轮修改前的历史）
 
