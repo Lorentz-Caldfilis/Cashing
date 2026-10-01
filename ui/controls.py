@@ -22,8 +22,8 @@ DATE_TEXT_NUDGE = -6
 
 class IconButton(QToolButton):
     """The shared object; subclasses only say which glyph it carries and how loud it is."""
-    REST = theme.TEXT_3      # glyph ink at rest
-    ACTIVE = theme.TEXT_2    # under the pointer, pressed or focused: one step up
+    REST = "TEXT_3"      # token names, resolved at paint time
+    ACTIVE = "TEXT_2"
 
     def __init__(self, name, parent=None, *, size=ICON_BUTTON):
         super().__init__(parent)
@@ -59,7 +59,7 @@ class IconButton(QToolButton):
         if not self.isEnabled():
             return QColor(theme.DISABLED_ARROW)
         lift = max(self.hover_weight(), self._press.value(), 1.0 if self.hasFocus() else 0.0)
-        return motion.mix(QColor(self.REST), QColor(self.ACTIVE), lift)
+        return motion.mix(QColor(getattr(theme, self.REST)), QColor(getattr(theme, self.ACTIVE)), lift)
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -89,7 +89,7 @@ class IconButton(QToolButton):
 
 class ChevronButton(IconButton):
     """One half of the month's navigation: the point leads the way the month moves."""
-    REST, ACTIVE = theme.TEXT_2, theme.TEXT  # the month is read, so its arrows speak a step louder
+    REST, ACTIVE = "TEXT_2", "TEXT"  # the month is read, so its arrows speak a step louder
     ARM = 3.4
     REACH = 5.2
 

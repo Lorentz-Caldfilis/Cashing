@@ -264,9 +264,9 @@ class RecordButton(QPushButton):
             surface, edge, ink, drop = (QColor(theme.DISABLED_SURFACE), QColor(theme.DISABLED_BORDER),
                                         QColor(theme.DISABLED_TEXT), 0.0)
         else:
-            surface = motion.mix(QColor(theme.ACTION), QColor(theme.ACCENT), self._hover.value())
-            surface = motion.mix(surface, QColor(theme.ACCENT_HOVER), self._press.value())
-            edge, ink = surface, QColor("#ffffff")
+            surface = motion.mix(QColor(theme.ACTION), QColor(theme.ACTION_HOVER), self._hover.value())
+            surface = motion.mix(surface, QColor(theme.ACTION_PRESSED), self._press.value())
+            edge, ink = surface, QColor(theme.ACTION_TEXT)
             drop = self._press.value()
         painter.setPen(QPen(edge, 1.0))
         painter.setBrush(surface)
@@ -389,7 +389,7 @@ class CapturePage(QWidget):
 
         self.heading = QLabel("记下这一笔")
         self.heading.setFont(theme.font(16, theme.MEDIUM))
-        self.heading.setStyleSheet(f"color: {theme.TEXT_2};")
+        theme.set_style(self.heading, "color: {TEXT_2};")
         self.heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
         body.addWidget(self.heading)
         body.addSpacing(24)
@@ -452,7 +452,7 @@ class CapturePage(QWidget):
         purpose.setSpacing(8)
         purpose.addStretch()
         label = QLabel("用途")
-        label.setStyleSheet(f"color: {theme.TEXT_3}; background: transparent;")
+        theme.set_style(label, "color: {TEXT_3}; background: transparent;")
         purpose.addWidget(label)
         purpose.addSpacing(4)
         self.category_buttons = {}
@@ -483,7 +483,7 @@ class CapturePage(QWidget):
         body.addSpacing(16)
         self.keyboard_hint = QLabel("金额  ↵  说明  ↵  保存 · 支持粘贴一笔")
         self.keyboard_hint.setFont(theme.font(12))
-        self.keyboard_hint.setStyleSheet(f"color: {theme.TEXT_3};")
+        theme.set_style(self.keyboard_hint, "color: {TEXT_3};")
         self.keyboard_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         body.addWidget(self.keyboard_hint)
         body.addSpacing(12)

@@ -46,7 +46,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(min(640, max(320, screen.width() - 40)), min(440, max(240, screen.height() - 80)))
         self.resize(min(WINDOW_WIDTH, screen.width() - 40), min(WINDOW_HEIGHT, screen.height() - 60))
         QApplication.instance().setFont(theme.font(theme.BASE_PX))
-        self.setStyleSheet(theme.STYLE)
+        theme.install(QApplication.instance())
 
         central = QWidget()
         central.setObjectName("space")
@@ -64,11 +64,11 @@ class MainWindow(QMainWindow):
         # Window-level overlays: stable positions regardless of the space shown.
         self.brand = QLabel("Cashing", central)
         self.brand.setFont(theme.font(18, theme.MEDIUM))
-        self.brand.setStyleSheet(f"color: {theme.TEXT_2}; background: transparent;")
+        theme.set_style(self.brand, "color: {TEXT_2}; background: transparent;")
         self.brand.adjustSize()
         self.local_note = QLabel("仅存本机 · 无需联网", central)
         self.local_note.setFont(theme.font(12))
-        self.local_note.setStyleSheet(f"color: {theme.TEXT_3}; background: transparent;")
+        theme.set_style(self.local_note, "color: {TEXT_3}; background: transparent;")
         self.local_note.adjustSize()
         self.navigation = SpaceNavigation(2, central)
         self.navigation.activated.connect(self.switch_to)
