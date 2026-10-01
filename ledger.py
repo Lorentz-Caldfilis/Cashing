@@ -15,6 +15,7 @@ from database import Database
 from domain import CATEGORIES, group_by_day, summarize_records, parse_stored_datetime, validate_record
 
 UNSET = object()
+AUTO = object()  # remove an explicit label; future reads use local learning again
 
 
 @dataclass(frozen=True)
@@ -65,12 +66,16 @@ class Ledger:
             self._classifier.drop_label(stored["id"])
 
     # ---- Capture -----------------------------------------------------
-    def create(self, amount_cents, when, description=""):
-        """Store the facts only; the category is derived whenever the record is read."""
+    def create(self, amount_cents, when, description="", *, category=UNSET):
+        """An optional personal category is a label; omission keeps automatic judgement."""
         description = description.strip()
-        validate_record(amount_cents, when, None, description)
-        record_id = self.database.add_record(amount_cents, when, None, description)
-        return self.interpret(self.database.get_record(record_id))
+        chosen = None if category is UNSET else category
+        validate_record(amount_cents, when, chosen, description)
+        record_id = self.database.add_record(amount_cents, when, chosen, description,
+                                            category_by_user=category is not UNSET)
+        stored = self.database.get_record(record_id)
+        self._learn(stored)
+        return self.interpret(stored)
 
     def undo_create(self, record_id):
         self.database.delete_record(record_id)
@@ -94,7 +99,9 @@ class Ledger:
         new_amount = stored["amount_cents"] if amount_cents is UNSET else amount_cents
         new_when = parse_stored_datetime(stored["datetime"]) if when is UNSET else when
         new_description = stored["description"] if description is UNSET else description.strip()
-        if category is UNSET:
+        if category is AUTO:
+            new_category, by_user = None, False
+        elif category is UNSET:
             new_category, by_user = stored["category"], stored["category_by_user"]
         else:
             new_category, by_user = category, True
@@ -103,6 +110,19 @@ class Ledger:
         fresh = self.database.get_record(record["id"])
         self._learn(fresh)
         return self.interpret(fresh)
+
+    def update_undoable(self, record, **changes):
+        """Return the display record and raw snapshots, never derived training labels."""
+        before = self.database.get_record(record["id"])
+        fresh = self.update(record, **changes)
+        after = self.database.get_record(record["id"])
+        return fresh, (before, after)
+
+    def undo_update(self, receipt):
+        before, after = receipt
+        self.database.revert_update(before, after)
+        self.reload()
+        return self.interpret(before)
 
     def delete(self, record):
         """Delete and hand back the stored snapshot needed to restore it."""
@@ -117,6 +137,9 @@ class Ledger:
         stored = self.database.get_record(snapshot["id"])
         self._learn(stored)
         return self.interpret(stored)
+
+    def backup_to(self, destination):
+        return self.database.backup_to(destination)
 
     @staticmethod
     def categories():

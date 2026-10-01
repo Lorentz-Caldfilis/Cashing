@@ -1,0 +1,19 @@
+{
+  "commit": "014de8e7084930e080f77e5dff16d10431f6f896",
+  "tracked_diff": true,
+  "synthetic": true,
+  "fixture": "durability-dense-after",
+  "count": 10000,
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "marks_seconds_from_import_start": {
+    "qt_import": 0.0672,
+    "app_modules_import": 0.104,
+    "application": 0.1116,
+    "database_initialize": 0.2037,
+    "window_constructed": 3.2885,
+    "capture_interactive": 3.3544,
+    "review_correct": 4.3902
+  },
+  "total_cents": 25995000,
+  "method": "cProfile enabled only during window construction/show/review; includes profiler overhead; no background work"
+}

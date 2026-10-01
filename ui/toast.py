@@ -21,9 +21,11 @@ class Toast(QFrame):
         layout.setSpacing(12)
         self.label = QLabel()
         self.label.setTextFormat(Qt.TextFormat.PlainText)
+        self.label.setWordWrap(True)
         layout.addWidget(self.label)
         self.undo_button = QPushButton("撤销")
         self.undo_button.setObjectName("undo")
+        self.undo_button.setToolTip("撤销最近操作 · Ctrl+Alt+Z")
         self.undo_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.undo_button.setFocusPolicy(Qt.FocusPolicy.TabFocus)
         self.undo_button.clicked.connect(self._run_undo)
@@ -51,7 +53,6 @@ class Toast(QFrame):
         self.label.style().unpolish(self.label)
         self.label.style().polish(self.label)
         self.undo_button.setVisible(undo is not None)
-        self.adjustSize()
         self.reposition()
         self.raise_()
         self.show()
@@ -89,6 +90,7 @@ class Toast(QFrame):
         parent = self.parentWidget()
         if parent is None:
             return
+        self.label.setMaximumWidth(max(120, min(560, parent.width() - 160)))
         self.adjustSize()
         x = (parent.width() - self.width()) // 2
         y = parent.height() - BOTTOM_GAP - self.height()

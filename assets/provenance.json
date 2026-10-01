@@ -1,0 +1,10 @@
+{
+  "tool": "built-in imagegen",
+  "date": "2026-10-01",
+  "prompt": "Use case: logo-brand. Asset type: Windows desktop app icon for Cashing, a calm personal expense notebook. Create one original minimalist anime chibi mascot app icon, square composition: an expressive tiny anime face with a short soft slate-blue bob hairstyle, two subtle cat-ear-shaped hair tufts, warm ivory face, two dark simple eyes, a very small gold circular coin hair clip. A restrained pale sage rounded-square app tile, centered bold readable silhouette, flat vector-like bitmap illustration with only a few clean solid color shapes, no texture, no glossy 3D effects. Japanese anime sensibility but extremely minimalist, friendly and quiet, legible at 16px and 32px. Leave transparent space outside the rounded square, preserve clean alpha. No text, letters, currency symbols, watermark, border, existing character, scenery, full body or complex details. One finished icon only, straight-on view, not a mockup or grid. Palette harmonizes with blue-grey and sage Cashing UI.",
+  "transparent_background": true,
+  "source": "cashing-icon-source.png",
+  "sha256": "12deaebe64954f4f2f76e6a15aefa7d5499878b056e2b19d066bf9d333ac2673",
+  "conversion": "scripts/prepare_icon.py: resolution conversion only",
+  "license": "MIT where applicable; AI generated image, no exclusive copyright guarantee"
+}

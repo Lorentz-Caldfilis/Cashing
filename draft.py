@@ -6,7 +6,11 @@ so it cannot appear in Review, totals, search or the chart.
 from dataclasses import dataclass, asdict
 from datetime import datetime
 import json
+import logging
+import os
+import tempfile
 from pathlib import Path
+from domain import CATEGORIES
 
 DRAFT_FILE = "draft.json"
 
@@ -16,10 +20,11 @@ class Draft:
     amount_text: str = ""
     description: str = ""
     when: str = ""  # canonical local time or "" (auto = now)
+    category: str | None = None
 
     @property
     def is_empty(self):
-        return not self.amount_text.strip() and not self.description.strip()
+        return not self.amount_text.strip() and not self.description.strip() and self.category is None
 
     def when_as_datetime(self):
         if not self.when:
@@ -38,24 +43,44 @@ class DraftStore:
         """Return the stored draft or None; an unreadable file is ignored, never fatal."""
         try:
             payload = json.loads(self.path.read_text("utf-8"))
+            category = payload.get("category")
+            if category not in CATEGORIES:
+                category = None
             draft = Draft(str(payload.get("amount_text", "")), str(payload.get("description", "")),
-                          str(payload.get("when", "")))
+                          str(payload.get("when", "")), category)
         except (OSError, ValueError, TypeError, AttributeError):
             return None
         return None if draft.is_empty else draft
 
-    def save(self, draft: Draft):
+    def save(self, draft: Draft) -> bool:
+        """Replace atomically so a failed write leaves the previous draft intact."""
         if draft.is_empty:
-            self.clear()
-            return
+            return self.clear()
+        temporary = None
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            self.path.write_text(json.dumps(asdict(draft), ensure_ascii=False), "utf-8")
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=self.path.parent,
+                                             prefix=".draft-", suffix=".tmp", delete=False) as stream:
+                temporary = Path(stream.name)
+                json.dump(asdict(draft), stream, ensure_ascii=False)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, self.path)
+            return True
         except OSError:
-            pass  # Losing a draft is acceptable; interrupting shutdown is not.
+            logging.warning("Could not persist Capture draft", exc_info=True)
+            return False
+        finally:
+            if temporary is not None:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
-    def clear(self):
+    def clear(self) -> bool:
         try:
             self.path.unlink(missing_ok=True)
+            return True
         except OSError:
-            pass
+            logging.warning("Could not clear Capture draft", exc_info=True)
+            return False

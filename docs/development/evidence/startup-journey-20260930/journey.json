@@ -1,0 +1,31 @@
+{
+  "status": "PASS",
+  "synthetic": true,
+  "platform": "linux",
+  "qt_platform": "xcb",
+  "scale": 1.0,
+  "checks": [
+    "new_empty_capture",
+    "01-first-capture",
+    "automatic_capture_does_not_train",
+    "three_record_total",
+    "explicit_correction_is_one_label",
+    "same_purpose_learns",
+    "02-learned-review",
+    "undo_removes_learning",
+    "undo_rederives_both_coffees",
+    "search_finds_both",
+    "03-search",
+    "backup_menu_action_created_snapshot",
+    "restore_all_facts_equal",
+    "restore_labels_equal",
+    "restored_gui_total",
+    "restored_gui_learning",
+    "04-restored-review"
+  ],
+  "limits": [
+    "Qt synthetic text, not IME",
+    "file chooser destination supplied by harness",
+    "reopen in same process, not OS restart"
+  ]
+}

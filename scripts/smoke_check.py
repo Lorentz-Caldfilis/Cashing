@@ -5,8 +5,11 @@ Review, in-place edit, delete edge, undo, search, month navigation, then a
 restart check (persistence + draft) on the second run in the same directory.
 """
 import json
+import os
 import socket
+import sys
 import traceback
+from time import monotonic
 from datetime import datetime
 from PySide6.QtCore import QTimer, Qt, QPoint
 from PySide6.QtTest import QTest
@@ -18,11 +21,14 @@ DRAFT_AMOUNT, DRAFT_TEXT = "12.5", "自动验收草稿"
 
 
 def schedule_smoke_check(app, window, database, directory):
-    result = {"status": "RUNNING", "checks": [], "database": str(database.path),
+    result = {"platform": sys.platform, "qt_platform": app.platformName(),
+              "native_windows": sys.platform == "win32" and app.platformName() == "windows",
+              "status": "RUNNING", "checks": [], "database": str(database.path),
               "device_pixel_ratio": window.devicePixelRatioF(),
               "window_size": [window.width(), window.height()],
               "screen_available": [app.primaryScreen().availableGeometry().width(),
                                    app.primaryScreen().availableGeometry().height()]}
+    result["clipboard_mode"] = os.environ.get("CASHING_SMOKE_CLIPBOARD_MODE", "system")
 
     def check(condition, message):
         if not condition:
@@ -35,6 +41,18 @@ def schedule_smoke_check(app, window, database, directory):
             app.processEvents()
             QTest.qWait(10)
 
+    def wait_for_space(index, name):
+        start = monotonic()
+        while monotonic() - start < 2.0:
+            app.processEvents()
+            if window.current_index() == index and not window.spaces.is_animating():
+                break
+            QTest.qWait(10)
+        result.setdefault("navigation", {})[name] = {
+            "elapsed_seconds": round(monotonic() - start, 4),
+            "index": window.current_index(), "animating": window.spaces.is_animating()}
+        check(window.current_index() == index and not window.spaces.is_animating(), name)
+
     def click_row(row, cell=None):
         target = getattr(row, cell) if cell else None
         pos = target.geometry().center() if target else QPoint(row.width() // 2, row.height() // 2)
@@ -43,6 +61,11 @@ def schedule_smoke_check(app, window, database, directory):
 
     def exercise():
         try:
+            # Native keyboard shortcuts require an active window. Automation can
+            # launch behind the editor; wait for real activation before driving it.
+            window.raise_()
+            window.activateWindow()
+            check(QTest.qWaitForWindowActive(window, 5000), "native_window_active")
             def blocked(*args, **kwargs):
                 raise AssertionError("Unexpected network access")
             socket.socket.connect = blocked
@@ -77,6 +100,48 @@ def schedule_smoke_check(app, window, database, directory):
             check(window.current_index() == CAPTURE and capture.amount.hasFocus(), "starts_in_capture_with_amount_focus")
             check(window.grab().save(str(directory / "01-capture.png")), "capture_screenshot")
 
+            # New capture path: clipboard fills a reviewable draft, then autosaves it.
+            if result["clipboard_mode"] == "parser":
+                check(capture.paste_entry("￥１８．５０ 合成午饭"), "synthetic_paste_parser_only")
+            else:
+                app.clipboard().setText("￥１８．５０ 合成午饭")
+                start = monotonic()
+                while app.clipboard().text() != "￥１８．５０ 合成午饭" and monotonic() - start < 2:
+                    QTest.qWait(50)
+                    app.clipboard().setText("￥１８．５０ 合成午饭")
+                check(app.clipboard().text() == "￥１８．５０ 合成午饭", "system_clipboard_available")
+                QTest.keyClick(capture.amount, Qt.Key.Key_V, Qt.KeyboardModifier.ControlModifier)
+            check(capture.amount.text() == "18.50" and capture.description.text() == "合成午饭",
+                  "single_entry_clipboard_fills_inputs")
+            check(not database.get_records_by_month(2026, 9), "paste_does_not_save_record")
+            settle(450)
+            check(DraftStore(directory).load() == capture.draft(), "draft_saved_before_close")
+            capture._reset_inputs()
+
+            # Optional purpose, raw origin, undo, and actual background persistence.
+            capture.amount.setText("9")
+            capture.description.setText("合成用途选择")
+            capture.select_category("娱乐")
+            capture.record()
+            selected = database.get_records_by_month(capture.ledger.now().year, capture.ledger.now().month)[0]
+            check(selected["category"] == "娱乐" and selected["category_by_user"] == 1,
+                  "capture_personal_category_stored")
+            window.toast._run_undo()
+            check(capture.selected_category == "娱乐", "undo_restores_capture_category")
+            capture._reset_inputs()
+            from PySide6.QtGui import QImage, QColor
+            image = QImage(80, 60, QImage.Format.Format_RGB32)
+            image.fill(QColor("#456784"))
+            image_path = directory / "synthetic-background.png"
+            check(image.save(str(image_path)), "synthetic_background_created")
+            window._apply_background(window.background_store.import_image(image_path))
+            check(not window.background_store.load().isNull(), "local_background_persists")
+            check(window.grab().save(str(directory / "01-background.png")), "background_screenshot")
+            window.reset_background()
+            check(window.centralWidget().image.isNull() and not window.background_store.path.exists(),
+                  "background_reset_preserves_ledger")
+            check(not window.windowIcon().isNull(), "application_icon_loaded")
+
             # Capture: local error, then three records through the Enter path.
             QTest.keyClicks(capture.amount, "0")
             QTest.keyClick(capture.amount, Qt.Key.Key_Return)
@@ -102,8 +167,7 @@ def schedule_smoke_check(app, window, database, directory):
 
             # Review: Alt+→ slides over; summary and history agree with the ledger.
             QTest.keyClick(window, Qt.Key.Key_Right, Qt.KeyboardModifier.AltModifier)
-            settle()
-            check(window.current_index() == REVIEW and not window.spaces.is_animating(), "alt_right_switches_to_review")
+            wait_for_space(REVIEW, "alt_right_switches_to_review")
             review.year, review.month = 2026, 9
             review.refresh()
             app.processEvents()
@@ -123,12 +187,26 @@ def schedule_smoke_check(app, window, database, directory):
             row.category_box.setCurrentText("工具")
             app.processEvents()
             check(review.summary.lines["工具"].amount.text() == "¥50.00", "category_edit_applies_at_once")  # newest id first among equal times
+            row.category_box.setCurrentText("自动判断")
+            check(not database.get_record(row.record["id"])["category_by_user"], "reset_personal_label")
+            QTest.keyClick(window, Qt.Key.Key_Z,
+                           Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)
+            app.processEvents()
+            row = review.rows()[0]
+            check(database.get_record(row.record["id"])["category_by_user"] == 1,
+                  "keyboard_undo_restores_personal_label")
+            click_row(row, "amount")
             row.amount_edit.setText("60.01")
             QTest.keyClick(row.amount_edit, Qt.Key.Key_Return)
             app.processEvents()
             check(not row.editing and review.summary.total.text() == "188.51", "amount_edit_committed_on_enter")
             check(len(review.summary.donut.segments) == 2 and not review.summary.donut.isHidden(),
                   "ring_follows_edit")
+
+            backup_path = directory / ("restart-backup.sqlite3" if previous else "first-backup.sqlite3")
+            window.ledger.backup_to(backup_path)
+            check(Database(backup_path).get_record(row.record["id"]) == database.get_record(row.record["id"]),
+                  "live_backup_preserves_edited_record")
 
             # Delete edge + undo.
             row = review.rows()[0]
@@ -184,7 +262,11 @@ def schedule_smoke_check(app, window, database, directory):
             reopened = Database(database.path)
             reopened.initialize_database()
             check(reopened.get_month_statistics(2020, 1)["total"] == 1234, "reopen_persistence")
-            check(app.platformName() == "windows", "native_windows_qt_platform")
+            if sys.platform == "win32":
+                check(app.platformName() == "windows", "native_windows_qt_platform")
+            else:
+                check(app.platformName() in ("xcb", "offscreen", "wayland"),
+                      "non_windows_qt_platform_recorded")
             result["status"] = "PASS"
         except Exception:
             result["status"] = "FAIL"

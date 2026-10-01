@@ -1,0 +1,23 @@
+{
+  "head": "7435e666d631f97b67b480f6df70376b7d521868",
+  "shallow": false,
+  "reachable_blobs": 431,
+  "image_blobs_not_ocr_checked": 11,
+  "counts": {
+    "home_directory_path": 1
+  },
+  "findings": [
+    {
+      "kind": "home_directory_path",
+      "blob": "6ecf223418b494fa7fd7a26b7e654d87faea60ba",
+      "path": "scripts/audit_repository.py",
+      "count": 1
+    }
+  ],
+  "limits": [
+    "reachable local refs only",
+    "pattern scan is not exhaustive",
+    "Git author identities and upstream license credits are not secrets",
+    "image contents need separate visual review"
+  ]
+}

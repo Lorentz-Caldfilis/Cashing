@@ -1,0 +1,34 @@
+[
+  {
+    "file": "pyside-setup-6.11.2.tar.gz",
+    "version": "6.11.2",
+    "repository": "qtproject/pyside-pyside-setup",
+    "commit": "24627cd36e1593adf22eb1f2950e4248e7bcc1ec",
+    "url": "https://codeload.github.com/qtproject/pyside-pyside-setup/tar.gz/24627cd36e1593adf22eb1f2950e4248e7bcc1ec",
+    "sha256": "92f292b8889f8a3213f7d17da5cdcd19f6d7f01611689bdf692890d5fbc7eb61"
+  },
+  {
+    "file": "qtbase-6.11.2.tar.gz",
+    "version": "6.11.2",
+    "repository": "qt/qtbase",
+    "commit": "ef55f427f2c8b410d34f8a7681020a3000cf6866",
+    "url": "https://codeload.github.com/qt/qtbase/tar.gz/ef55f427f2c8b410d34f8a7681020a3000cf6866",
+    "sha256": "12b3a9ba00613180caea4da77a1ae6fc1ca054b8822b316ba3a05fb4414fba56"
+  },
+  {
+    "file": "qtimageformats-6.11.2.tar.gz",
+    "version": "6.11.2",
+    "repository": "qt/qtimageformats",
+    "commit": "47b6139dda3b84d1d3ec15caf8d04eff8d744c8d",
+    "url": "https://codeload.github.com/qt/qtimageformats/tar.gz/47b6139dda3b84d1d3ec15caf8d04eff8d744c8d",
+    "sha256": "5a8390e7d8e1c974f230106c3f4fea5a2b5defc296814b24edb8de6f016328bf"
+  },
+  {
+    "file": "qttranslations-6.11.2.tar.gz",
+    "version": "6.11.2",
+    "repository": "qt/qttranslations",
+    "commit": "570add0b7d3b1f2b7034b0bf41715456a238b29f",
+    "url": "https://codeload.github.com/qt/qttranslations/tar.gz/570add0b7d3b1f2b7034b0bf41715456a238b29f",
+    "sha256": "e040b2218fb960298467b43541308bce2079e36d8561cd9146e76997c79c50b1"
+  }
+]

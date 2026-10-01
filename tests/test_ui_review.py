@@ -102,7 +102,7 @@ def test_unknown_amounts_count_in_the_total_but_never_as_a_fourth_category(windo
     assert [cents for _, cents in page.summary.donut.segments] == [800, 1200]
     rows = page.rows()
     assert rows[0].category_name.text() == "生活" and not rows[0].category_dot.isHidden()
-    assert rows[1].category_name.text() == "" and rows[1].category_dot.isHidden()
+    assert rows[1].category_name.text() == "暂未判断" and rows[1].category_dot.isHidden()
 
 
 def test_no_ring_without_a_classified_proportion(window, database):
@@ -234,7 +234,7 @@ def test_refresh_reuses_widgets_and_failure_never_looks_empty(window, database, 
     assert not page.failure.isVisible() and page.summary.total.text() == "1.00"
 
 
-def test_capture_save_shows_up_in_review_without_leaving_capture(window, qtbot, database):
+def test_capture_save_is_visible_when_review_is_entered(window, qtbot, database):
     capture = window.capture
     capture.amount.setText("28.5")
     capture.description.setText("晚饭")
@@ -243,6 +243,8 @@ def test_capture_save_shows_up_in_review_without_leaving_capture(window, qtbot, 
     now = datetime.now()
     page = window.review
     assert (page.year, page.month) == (now.year, now.month)
+    assert database.get_records_by_month(now.year, now.month)[0]["description"] == "晚饭"
+    window.switch_to(REVIEW, animate=False)
     assert [r.description.full_text() for r in page.rows()] == ["晚饭"]
     for _ in range(8):
         window.switch_to(REVIEW, animate=False)
@@ -282,3 +284,147 @@ def test_scroll_edges_appear_only_while_records_continue(window, qtbot, database
     qtbot.waitUntil(lambda: page.top_edge.shown() and not page.bottom_edge.shown(), timeout=1000)
     page.change_month(-1)  # an empty month fits: no edge at all
     qtbot.waitUntil(lambda: not page.top_edge.shown() and not page.bottom_edge.shown(), timeout=1000)
+
+
+def test_category_reset_and_undo_relearns_for_other_rows(window, database):
+    first = window.ledger.create(1200, datetime(2026, 9, 20, 12, 0), "星云小站")
+    window.ledger.create(1800, datetime(2026, 9, 20, 13, 0), "星云小站")
+    window.ledger.update(first, category="生活")
+    window.switch_to(REVIEW, animate=False)
+    september(window.review)
+    row = window.review.history.row_for(first["id"])
+    window.review._row_clicked(row, "category")
+    row.category_box.setCurrentIndex(4)
+    assert database.user_labels() == []
+    assert all(r.record["category"] is None for r in window.review.rows())
+    window.toast._run_undo()
+    assert len(database.user_labels()) == 1
+    assert all(r.record["category"] == "生活" for r in window.review.rows())
+
+
+def test_explicit_selection_can_confirm_the_current_automatic_category(window, database):
+    record = window.ledger.create(1200, datetime(2026, 9, 20, 12, 0), "午饭")
+    window.switch_to(REVIEW, animate=False)
+    september(window.review)
+    row = window.review.history.row_for(record["id"])
+    window.review._row_clicked(row, "category")
+    row.category_box.setCurrentIndex(0)
+    row.category_box.activated.emit(0)
+    assert database.get_record(record["id"])["category_by_user"] == 1
+    window.toast._run_undo()
+    assert database.get_record(record["id"])["category_by_user"] == 0
+
+
+def test_compact_window_shows_first_record_description(window, qtbot, database):
+    database.add_record(1850, datetime(2026, 9, 30, 12, 0), "生活", "食堂午饭")
+    window.resize(640, 480)
+    window.switch_to(REVIEW, animate=False)
+    september(window.review)
+    qtbot.wait(30)
+    row = window.review.rows()[0]
+    bottom = row.description.mapTo(window.review.scroll.viewport(), row.description.rect().bottomLeft()).y()
+    assert bottom < window.review.scroll.viewport().height()
+
+
+def test_invalid_edit_prevents_window_close(window, qtbot, database):
+    database.add_record(1850, datetime(2026, 9, 30, 12, 0), "生活", "食堂午饭")
+    window.switch_to(REVIEW, animate=False)
+    september(window.review)
+    row = window.review.rows()[0]
+    window.review._row_clicked(row, "amount")
+    row.amount_edit.setText("0")
+    qtbot.wait(30)
+    window.close()
+    assert window.isVisible()
+    assert row.amount_edit.text() == "0"
+    assert row.hint.isVisible()
+    window.review.cancel_edit()
+
+
+def test_description_change_never_teaches_untouched_category(window, qtbot, database):
+    record = window.ledger.create(1850, datetime(2026, 9, 30, 12, 0), "午饭")
+    window.switch_to(REVIEW, animate=False)
+    september(window.review)
+    row = window.review.history.row_for(record["id"])
+    window.review._row_clicked(row, "description")
+    row.description_edit.setText("电影票")
+    assert window.review.prepare_leave()
+    stored = database.get_record(record["id"])
+    assert stored["description"] == "电影票"
+    assert stored["category_by_user"] == 0
+    assert database.user_labels() == []
+    assert window.ledger.interpret(stored)["category"] == "娱乐"
+
+
+def test_undo_same_category_restores_origin_and_allows_second_reset(window, database):
+    record = window.ledger.create(1850, datetime(2026, 9, 30, 12, 0), "午饭")
+    window.ledger.update(record, category="生活")
+    window.switch_to(REVIEW, animate=False)
+    september(window.review)
+    row = window.review.history.row_for(record["id"])
+    window.review._row_clicked(row, "category")
+    row.category_box.setCurrentIndex(4)
+    assert database.get_record(record["id"])["category_by_user"] == 0
+    window.toast._run_undo()
+    row = window.review.history.row_for(record["id"])
+    assert row.record["category_by_user"] == database.get_record(record["id"])["category_by_user"] == 1
+    window.review._row_clicked(row, "category")
+    row.category_box.setCurrentIndex(4)
+    assert database.user_labels() == []
+
+
+def test_undo_to_automatic_origin_allows_another_explicit_confirmation(window, database):
+    record = window.ledger.create(1850, datetime(2026, 9, 30, 12, 0), "午饭")
+    window.switch_to(REVIEW, animate=False)
+    september(window.review)
+    row = window.review.history.row_for(record["id"])
+    window.review._row_clicked(row, "category")
+    row.category_box.setCurrentIndex(0)
+    row.category_box.activated.emit(0)
+    assert database.get_record(record["id"])["category_by_user"] == 1
+    window.toast._run_undo()
+    row = window.review.history.row_for(record["id"])
+    assert row.record["category_by_user"] == database.get_record(record["id"])["category_by_user"] == 0
+    window.review._row_clicked(row, "category")
+    row.category_box.setCurrentIndex(0)
+    row.category_box.activated.emit(0)
+    assert database.get_record(record["id"])["category_by_user"] == 1
+
+
+def test_blocked_edit_undo_can_be_retried_after_cancelling_invalid_input(window, database):
+    record = window.ledger.create(1850, datetime(2026, 9, 30, 12, 0), "午饭")
+    window.switch_to(REVIEW, animate=False)
+    september(window.review)
+    row = window.review.history.row_for(record["id"])
+    window.review._row_clicked(row, "category")
+    row.category_box.setCurrentText("娱乐")
+    row.amount_edit.setText("0")
+    window.toast._run_undo()
+    assert window.toast.can_undo()
+    assert database.get_record(record["id"])["category"] == "娱乐"
+    window.review.cancel_edit()
+    window.toast._run_undo()
+    assert database.get_record(record["id"])["category_by_user"] == 0
+    assert database.user_labels() == []
+
+
+def test_empty_month_has_a_direct_capture_action(window, qtbot):
+    window.switch_to(REVIEW, animate=False)
+    assert window.review.summary.empty_action.isVisible()
+    qtbot.mouseClick(window.review.summary.empty_action, Qt.MouseButton.LeftButton)
+    assert window.current_index() == 0
+    assert window.capture.amount.hasFocus()
+
+
+def test_origin_and_unknown_are_visible_without_hover_and_opening_does_not_teach(window, database):
+    record = window.ledger.create(1800, datetime(2026, 9, 30, 12, 0), "咖啡")
+    window.switch_to(REVIEW, animate=False)
+    september(window.review)
+    row = window.review.history.row_for(record["id"])
+    assert row.category_origin.text() == "自动"
+    assert row.category_name.text() == "暂未判断"
+    assert "自动 暂未判断" in row.accessibleName()
+    window.review._row_clicked(row, "category")
+    assert row.category_box.currentText() == "自动判断"
+    assert window.review.prepare_leave()
+    assert database.user_labels() == []

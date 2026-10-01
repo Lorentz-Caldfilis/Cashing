@@ -1,4 +1,4 @@
-"""Capture: amount, one line of description, a weak time, one action. Nothing else.
+"""Capture: amount, description, time, optional personal purpose and one action.
 
 Composition: a narrow column, centred and slightly above the middle, with a
 lot of air. No form chrome — the amount is a number, the description is a
@@ -8,14 +8,15 @@ from datetime import datetime
 from PySide6.QtCore import (
     Qt, Signal, QTimer, QRegularExpression, QPoint, QPointF, QSize, QDateTime, QDate, QRectF, QEvent,
 )
-from PySide6.QtGui import QRegularExpressionValidator, QFontMetrics, QPainter, QColor, QPen
+from PySide6.QtGui import QRegularExpressionValidator, QFontMetrics, QPainter, QColor, QPen, QKeySequence
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QFrame,
-    QDateTimeEdit, QSizePolicy,
+    QDateTimeEdit, QSizePolicy, QApplication, QScrollArea, QPlainTextEdit,
 )
 from database import DatabaseError
-from domain import parse_amount, format_amount, cents_to_input, describe_time, MAX_DESCRIPTION
+from domain import CATEGORIES, parse_amount, format_amount, cents_to_input, describe_time, MAX_DESCRIPTION
 from draft import Draft
+from quick_entry import parse_quick_entry
 from ui import motion, theme
 from ui.controls import QuietDateTimeEdit, DATE_TEXT_NUDGE
 
@@ -33,7 +34,7 @@ CURRENCY_GAP = 4
 # the right of the box that holds it. On top of the caret's own room the pair is set this
 # far further left, so that what the eye weighs as the number lands on the axis.
 CURRENCY_OPTICAL = 2
-RECORD_WIDTH, RECORD_HEIGHT = 96, 34
+RECORD_WIDTH, RECORD_HEIGHT = 120, 40
 RECORD_RADIUS = 5
 RECORD_TEXT_LIFT = 1     # CJK has no descender: centring the line box sets the word a touch low
 # The time layer speaks the app's date language (the same words as the time it edits) and is
@@ -44,7 +45,6 @@ POPOVER_FORMAT = "yyyy年M月d日 HH:mm"
 ERROR_SLOT = 20          # always reserved, so an error never moves the column
 AMOUNT_TO_TEXT = 10      # + ERROR_SLOT: the one real group break
 TEXT_TO_TIME = 2
-TIME_TO_ACTION = 36
 # The column keeps a reserved error slot under the button, so its box is taller than what
 # is on screen. These two numbers place the visible group — a little above the middle —
 # not the widget: read them together with that slot, never as the composition itself.
@@ -124,6 +124,7 @@ class AmountEdit(QuietLineEdit):
 
     def __init__(self, parent=None):
         super().__init__(parent, line_width=1.5, line_pad=2, line_lift=8)
+        self.paste_entry = None
         self.setObjectName("amount")
         self.setFont(theme.font(AMOUNT_PX, theme.MEDIUM, tabular=True))
         self.setMaxLength(12)
@@ -136,6 +137,13 @@ class AmountEdit(QuietLineEdit):
         self.setFrame(False)
         self.textChanged.connect(self.updateGeometry)
         self.setSizePolicy(QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed))
+
+    def keyPressEvent(self, event):
+        if (event.matches(QKeySequence.StandardKey.Paste) and self.paste_entry is not None
+                and (not self.text() or self.selectedText() == self.text())):
+            if self.paste_entry(QApplication.clipboard().text()):
+                return
+        super().keyPressEvent(event)
 
     def _follow_emptiness(self, text):
         self.setProperty("empty", "true" if not text else "false")
@@ -339,6 +347,7 @@ class TimePopover(QFrame):
 
 
 class CapturePage(QWidget):
+    draft_changed = Signal()
     changed = Signal()  # the ledger changed (record stored or undone)
 
     def __init__(self, ledger, notify, parent=None):
@@ -347,8 +356,20 @@ class CapturePage(QWidget):
         self.ledger = ledger
         self.notify = notify
         self._when = None  # None = automatic (now)
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(48, 24, 48, 64)
+        self.selected_category = None
+        frame = QVBoxLayout(self)
+        frame.setContentsMargins(0, 76, 0, 64)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        content = QWidget()
+        content.setObjectName("space")
+        self.scroll.setWidget(content)
+        frame.addWidget(self.scroll)
+        outer = QVBoxLayout(content)
+        outer.setContentsMargins(48, 12, 48, 12)
         outer.setSpacing(0)
         outer.addStretch(ABOVE)
         column = QWidget()
@@ -366,12 +387,21 @@ class CapturePage(QWidget):
         body.setContentsMargins(0, 0, 0, 0)
         body.setSpacing(0)
 
+        self.heading = QLabel("记下这一笔")
+        self.heading.setFont(theme.font(16, theme.MEDIUM))
+        self.heading.setStyleSheet(f"color: {theme.TEXT_2};")
+        self.heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        body.addWidget(self.heading)
+        body.addSpacing(24)
+
         # Amount ---------------------------------------------------------
         amount_row = QHBoxLayout()
         amount_row.setContentsMargins(0, 0, 0, 0)
         amount_row.setSpacing(0)  # the gap belongs to the mark, not to the layout
         amount_row.addStretch()
         self.amount = AmountEdit()
+        self.amount.paste_entry = self.paste_entry
+        self.amount.setToolTip("可用 Ctrl+V 粘贴一笔，例如：18.5 午饭")
         self.currency = CurrencyMark(CURRENCY_PX, self.amount.sizeHint().height(),
                                      self.amount.baseline_from_bottom())
         amount_row.addWidget(self.currency, 0, Qt.AlignmentFlag.AlignBottom)
@@ -395,11 +425,11 @@ class CapturePage(QWidget):
         self.description.setObjectName("description")
         self.description.setFont(theme.font(17))
         self.description.setMaxLength(MAX_DESCRIPTION)
-        self.description.setPlaceholderText("做了什么")  # a prompt, not a question the software asks
+        self.description.setPlaceholderText("午饭、打印、周末电影…")  # a prompt, not a question the software asks
         self.description.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.description.setAccessibleName("说明")
         self.description.setFrame(False)
-        self.description.setMaximumWidth(320)
+        self.description.setFixedWidth(320)
         self.description.textChanged.connect(self._description_emptiness)
         self._description_emptiness("")
         body.addWidget(self.description, 0, Qt.AlignmentFlag.AlignHCenter)
@@ -416,10 +446,33 @@ class CapturePage(QWidget):
         self.time_button.setToolTip("点击修改时间")
         self.time_button.clicked.connect(self.open_time_editor)
         body.addWidget(self.time_button, 0, Qt.AlignmentFlag.AlignHCenter)
-        body.addSpacing(TIME_TO_ACTION)
+        body.addSpacing(16)
+
+        purpose = QHBoxLayout()
+        purpose.setSpacing(8)
+        purpose.addStretch()
+        label = QLabel("用途")
+        label.setStyleSheet(f"color: {theme.TEXT_3}; background: transparent;")
+        purpose.addWidget(label)
+        purpose.addSpacing(4)
+        self.category_buttons = {}
+        for category in CATEGORIES:
+            button = QPushButton(category)
+            button.setObjectName("purpose")
+            button.setCheckable(True)
+            button.setFixedSize(66, 32)
+            button.setAccessibleName(f"用途：{category}")
+            button.setToolTip("可选；再次点击取消，留空自动判断")
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.clicked.connect(lambda checked, value=category: self.select_category(value))
+            self.category_buttons[category] = button
+            purpose.addWidget(button)
+        purpose.addStretch()
+        body.addLayout(purpose)
+        body.addSpacing(28)
 
         # Action ---------------------------------------------------------
-        self.record_button = RecordButton("记录")
+        self.record_button = RecordButton("记一笔")
         self.record_button.setFocusPolicy(Qt.FocusPolicy.TabFocus)  # a failed click leaves the input focused
         self.record_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.record_button.setFixedSize(RECORD_WIDTH, RECORD_HEIGHT)
@@ -427,6 +480,12 @@ class CapturePage(QWidget):
         self.record_button.setEnabled(False)
         self.record_button.clicked.connect(self.record)
         body.addWidget(self.record_button, 0, Qt.AlignmentFlag.AlignHCenter)
+        body.addSpacing(16)
+        self.keyboard_hint = QLabel("金额  ↵  说明  ↵  保存 · 支持粘贴一笔")
+        self.keyboard_hint.setFont(theme.font(12))
+        self.keyboard_hint.setStyleSheet(f"color: {theme.TEXT_3};")
+        self.keyboard_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        body.addWidget(self.keyboard_hint)
         body.addSpacing(12)
         self.save_error = QLabel()
         self.save_error.setObjectName("error")
@@ -434,11 +493,15 @@ class CapturePage(QWidget):
         self.save_error.setWordWrap(True)
         self.save_error.setTextFormat(Qt.TextFormat.PlainText)
         body.addWidget(self.save_error)
-        self.save_error_detail = QLabel()
+        self.save_error_detail = QPlainTextEdit()
+        self.save_error_detail.setReadOnly(True)
+        self.save_error_detail.setFixedHeight(72)
+        self.save_error_detail.setFrameShape(QFrame.Shape.NoFrame)
+        self.save_error_detail.setAccessibleName("保存错误详情，可选择并复制")
+        self.save_error_detail.hide()
+        self.save_error_detail.textChanged.connect(
+            lambda: self.save_error_detail.setVisible(bool(self.save_error_detail.toPlainText())))
         self.save_error_detail.setObjectName("errorDetail")
-        self.save_error_detail.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.save_error_detail.setWordWrap(True)
-        self.save_error_detail.setTextFormat(Qt.TextFormat.PlainText)
         body.addWidget(self.save_error_detail)
         body.addSpacing(12)
 
@@ -448,12 +511,19 @@ class CapturePage(QWidget):
 
         QWidget.setTabOrder(self.amount, self.description)
         QWidget.setTabOrder(self.description, self.time_button)
-        QWidget.setTabOrder(self.time_button, self.record_button)
+        previous_control = self.time_button
+        for button in self.category_buttons.values():
+            QWidget.setTabOrder(previous_control, button)
+            previous_control = button
+        QWidget.setTabOrder(previous_control, self.record_button)
         self.amount.returnPressed.connect(self.amount_entered)
         self.amount.textChanged.connect(self._amount_changed)
         self.amount.editingFinished.connect(self._amount_finished)
         self.description.returnPressed.connect(self.record)
         self.description.textChanged.connect(lambda: self._clear_save_error())
+
+        self.amount.textChanged.connect(self.draft_changed)
+        self.description.textChanged.connect(self.draft_changed)
 
         self._clock = QTimer(self)
         self._clock.setInterval(20_000)
@@ -467,6 +537,12 @@ class CapturePage(QWidget):
         self.description.style().unpolish(self.description)
         self.description.style().polish(self.description)
 
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        compact = self.height() < 560
+        self.heading.setVisible(not compact)
+        self.keyboard_hint.setVisible(not compact)
+
     # ---- state ------------------------------------------------------------
     def current_time(self) -> datetime:
         return self._when if self._when is not None else self.ledger.now()
@@ -477,21 +553,33 @@ class CapturePage(QWidget):
     def set_time(self, when: datetime):
         self._when = when.replace(second=0, microsecond=0)
         self._refresh_time_label()
+        self.draft_changed.emit()
 
     def reset_time(self):
         self._when = None
         self._refresh_time_label()
+        self.draft_changed.emit()
 
     def has_input(self) -> bool:
-        return bool(self.amount.text().strip() or self.description.text().strip())
+        return bool(self.amount.text().strip() or self.description.text().strip() or self.selected_category)
+
+    def select_category(self, category):
+        self._set_category(None if self.selected_category == category else category)
+
+    def _set_category(self, category):
+        self.selected_category = category if category in CATEGORIES else None
+        for value, button in self.category_buttons.items():
+            button.setChecked(value == self.selected_category)
+        self.draft_changed.emit()
 
     def draft(self) -> Draft:
         when = "" if self._when is None else self._when.strftime("%Y-%m-%d %H:%M")
-        return Draft(self.amount.text(), self.description.text(), when)
+        return Draft(self.amount.text(), self.description.text(), when, self.selected_category)
 
     def restore_draft(self, draft: Draft):
         self.amount.setText(draft.amount_text)
         self.description.setText(draft.description)
+        self._set_category(draft.category)
         when = draft.when_as_datetime()
         if when is None:
             self.reset_time()
@@ -507,6 +595,22 @@ class CapturePage(QWidget):
             self.description.setCursorPosition(len(self.description.text()))
         else:
             self.amount.setFocus()
+
+    def paste_entry(self, text):
+        """A complete pasted entry is reviewable input, never an automatic save."""
+        try:
+            entry = parse_quick_entry(text)
+        except ValueError as exc:
+            self.amount_error.setText(str(exc))
+            return True  # rejected as a whole; never paste a truncated prefix
+        if entry.description and self.description.text().strip():
+            self.amount_error.setText("说明已有内容，请先保留或清空后再粘贴一笔")
+            return True
+        self.amount.setText(entry.amount_text)
+        if entry.description:
+            self.description.setText(entry.description)
+        self.description.setFocus()
+        return True
 
     # ---- amount ------------------------------------------------------------
     def _amount_changed(self, text):
@@ -565,12 +669,14 @@ class CapturePage(QWidget):
             return
         when = self.current_time()
         description = self.description.text().strip()
-        previous = (self.amount.text(), self.description.text(), self._when)
+        previous = (self.amount.text(), self.description.text(), self._when, self.selected_category)
         try:
-            stored = self.ledger.create(cents, when, description)
+            choice = {} if self.selected_category is None else {"category": self.selected_category}
+            stored = self.ledger.create(cents, when, description, **choice)
         except (ValueError, DatabaseError) as exc:
             self.save_error.setText("无法保存，这笔记录尚未写入。")
-            self.save_error_detail.setText(str(exc))
+            self.save_error_detail.setPlainText(str(exc))
+            QTimer.singleShot(0, lambda: self.scroll.ensureWidgetVisible(self.save_error_detail, 0, 8))
             return
         # Only after the database confirmed the write.
         self._reset_inputs()
@@ -584,7 +690,12 @@ class CapturePage(QWidget):
         except DatabaseError as exc:
             self.notify(f"无法撤销，这笔记录仍然保留。{exc}", danger=True)
             return
-        amount_text, description, when = previous
+        if self.has_input() or not self.time_is_auto():
+            self.notify("已撤销上一笔，正在输入的内容已保留。")
+            self.changed.emit()
+            return
+        amount_text, description, when, category = previous
+        self._set_category(category)
         self.amount.setText(amount_text)
         self.description.setText(description)
         self._when = when
@@ -594,6 +705,7 @@ class CapturePage(QWidget):
         self.changed.emit()
 
     def _reset_inputs(self):
+        self._set_category(None)
         self.amount.clear()
         self.description.clear()
         self._when = None

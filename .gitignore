@@ -45,4 +45,7 @@ secrets*
 token*
 *.db3-*
 secret*
+appearance-background.png
+draft.json
+.codex/
 *.code-workspace

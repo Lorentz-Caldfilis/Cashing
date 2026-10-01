@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import sqlite3
 import subprocess
 import time
@@ -16,6 +17,25 @@ ROOT=Path(__file__).resolve().parents[1]
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def verify_manifest(install):
+    expected = {}
+    for line in (install / 'MANIFEST.sha256').read_text('utf-8').splitlines():
+        hash_value, name = line.split('  ', 1)
+        path = install / name
+        if (not re.fullmatch(r'[0-9a-f]{64}', hash_value) or name in expected
+                or not path.resolve().is_relative_to(install.resolve())
+                or path.is_symlink() or Path(name).is_absolute()):
+            raise ValueError('Unsafe or duplicate manifest entry')
+        expected[name] = hash_value
+    actual = {p.relative_to(install).as_posix() for p in install.rglob('*') if p.is_file()}
+    if actual != set(expected) | {'MANIFEST.sha256'}:
+        raise ValueError('Installation file set differs from manifest')
+    for name, hash_value in expected.items():
+        if digest(install / name) != hash_value:
+            raise ValueError(f'Installation hash mismatch: {name}')
+    return expected
 
 
 def environment():
@@ -28,9 +48,10 @@ def environment():
     return env
 
 
-def run_smoke(command,directory,scale="1"):
+def run_smoke(command,directory,scale="1",clipboard_mode="system"):
     env=environment()
     env["QT_SCALE_FACTOR"]=scale
+    env["CASHING_SMOKE_CLIPBOARD_MODE"]=clipboard_mode
     directory.parent.mkdir(parents=True,exist_ok=True)
     stdout=directory.parent/(directory.name+".stdout.log")
     stderr=directory.parent/(directory.name+".stderr.log")
@@ -105,10 +126,14 @@ def main():
     parser.add_argument("--phase",choices=["source","frozen"],required=True)
     parser.add_argument("--install",type=Path)
     parser.add_argument("--label",default="release-verification")
+    parser.add_argument("--clipboard-mode",choices=["system","parser"],default="system",
+                        help="parser is limited verification for hosts without system clipboard permission")
     args=parser.parse_args()
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,79}', args.label):
+        parser.error('--label must be a simple directory name')
     work=ROOT/"work"/args.label
-    work.mkdir(parents=True,exist_ok=True)
-    results={"phase":args.phase,"runs":[]}
+    work.mkdir(parents=True,exist_ok=False)
+    results={"phase":args.phase,"clipboard_mode":args.clipboard_mode,"runs":[]}
     if args.phase=="source":
         command=[str(ROOT/".venv/Scripts/python.exe"),str(ROOT/"main.py")]
     else:
@@ -118,24 +143,18 @@ def main():
         if not install.is_relative_to(ROOT):
             parser.error("Verification installation must be inside this project")
         command=[str(install/"Cashing.exe")]
-        expected={}
-        for line in (install/"MANIFEST.sha256").read_text("utf8").splitlines():
-            hash_value,name=line.split("  ",1)
-            expected[name]=hash_value
-        for name,hash_value in expected.items():
-            assert digest(install/name)==hash_value, name
+        expected=verify_manifest(install)
         results["manifest_files"]=len(expected)
     for index in range(2):
-        result=run_smoke(command,work/"中文 用户 带空格"/"smoke")
+        result=run_smoke(command,work/"中文 用户 带空格"/"smoke",clipboard_mode=args.clipboard_mode)
         if index==1:
             assert "previous_process_persistence" in result["checks"]
         results["runs"].append(result)
     for scale in ("1.25","1.5","2"):
-        results["runs"].append(run_smoke(command,work/("scale-"+scale),scale))
+        results["runs"].append(run_smoke(command,work/("scale-"+scale),scale, args.clipboard_mode))
     if args.phase=="frozen":
         results["default_mode"]=default_path(Path(command[0]),work/"本地 用户 AppData")
-        for name,hash_value in expected.items():
-            assert digest(install/name)==hash_value,name
+        assert verify_manifest(install)==expected, 'Manifest changed during execution'
         forbidden=[p for p in install.rglob("*") if p.suffix.lower() in {".db",".sqlite",".sqlite3",".log"}]
         assert not forbidden,forbidden
         results["install_unchanged"]=True

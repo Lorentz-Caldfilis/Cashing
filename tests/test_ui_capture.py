@@ -110,6 +110,9 @@ def test_tab_keeps_native_focus_order(window, qtbot):
     qtbot.keyClick(capture.description, Qt.Key.Key_Tab)
     assert capture.time_button.hasFocus()
     qtbot.keyClick(capture.time_button, Qt.Key.Key_Tab)
+    for button in capture.category_buttons.values():
+        assert button.hasFocus()
+        qtbot.keyClick(button, Qt.Key.Key_Tab)
     assert capture.record_button.hasFocus()
 
 
@@ -126,7 +129,7 @@ def test_write_failure_keeps_every_input(window, qtbot, database, monkeypatch):
     assert capture.amount.text() == "28.50" and capture.description.text() == "晚饭"
     assert capture.current_time() == datetime(2026, 9, 19, 22, 15)
     assert capture.save_error.text() == "无法保存，这笔记录尚未写入。"
-    assert "磁盘不可写" in capture.save_error_detail.text()
+    assert "磁盘不可写" in capture.save_error_detail.toPlainText()
     assert not window.toast.isVisible()
     assert stored(database) == []
     capture.description.setText("晚饭 2")
@@ -258,3 +261,86 @@ def test_the_toast_leaves_the_way_it_came_in(window, qtbot):
     if motion.ENABLED:
         assert toast.isVisible()  # the surface fades out rather than blinking away
     qtbot.waitUntil(lambda: not toast.isVisible(), timeout=2000)
+
+
+def test_undo_preserves_the_next_pending_record(window, database):
+    capture = window.capture
+    capture.amount.setText("12")
+    capture.description.setText("食堂")
+    capture.record()
+    capture.amount.setText("18")
+    capture.description.setText("打印资料")
+    capture.set_time(datetime(2026, 9, 28, 9, 0))
+    pending = capture.draft()
+    window.toast._run_undo()
+    assert stored(database) == []
+    assert capture.draft() == pending
+    assert "已保留" in window.toast.label.text()
+
+
+def test_draft_is_saved_while_window_is_open(window, qtbot, tmp_path):
+    capture = window.capture
+    capture.amount.setText("15")
+    capture.description.setText("合成草稿")
+    capture.set_time(datetime(2026, 9, 28, 9, 0))
+    qtbot.waitUntil(lambda: DraftStore(tmp_path).load() == capture.draft(), timeout=2000)
+    capture.record()
+    assert DraftStore(tmp_path).load() is None
+
+
+def test_failed_draft_write_keeps_window_open(window, monkeypatch):
+    window.capture.amount.setText("20")
+    monkeypatch.setattr(window.drafts, "save", lambda draft: False)
+    window.close()
+    assert window.isVisible()
+    assert window.capture.amount.text() == "20"
+    assert "草稿未能保存" in window.toast.label.text()
+    monkeypatch.undo()
+
+
+def test_long_notification_fits_window_and_keyboard_undo_works(window, qtbot, database):
+    capture = window.capture
+    capture.amount.setText("12")
+    capture.description.setText("合成说明" * 50)
+    capture.record()
+    assert window.toast.width() <= window.centralWidget().width()
+    qtbot.keyClick(capture.amount, Qt.Key.Key_Z,
+                   Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier)
+    assert stored(database) == []
+    assert capture.description.text() == "合成说明" * 50
+
+
+def test_paste_expense_is_reviewable_and_never_overwrites_description(window, qtbot, database):
+    from PySide6.QtWidgets import QApplication
+    capture = window.capture
+    QApplication.clipboard().setText("￥２８．５０ 食堂午饭")
+    qtbot.keyClick(capture.amount, Qt.Key.Key_V, Qt.KeyboardModifier.ControlModifier)
+    assert capture.amount.text() == "28.50"
+    assert capture.description.text() == "食堂午饭"
+    assert stored(database) == []
+    capture.amount.selectAll()
+    QApplication.clipboard().setText("12 打印")
+    qtbot.keyClick(capture.amount, Qt.Key.Key_V, Qt.KeyboardModifier.ControlModifier)
+    assert capture.description.text() == "食堂午饭"
+    assert capture.amount.text() == "28.50"
+    assert "说明已有内容" in capture.amount_error.text()
+
+
+def test_long_storage_error_remains_readable_in_small_window(window, qtbot, monkeypatch):
+    window.resize(680, 440)
+    capture = window.capture
+    detail = "合成磁盘错误，请检查目录权限。" * 100
+    def fail(*args, **kwargs):
+        raise DatabaseError(detail)
+    monkeypatch.setattr(window.ledger, "create", fail)
+    capture.amount.setText("18.50")
+    capture.description.setText("合成午饭")
+    capture.record()
+    qtbot.wait(40)
+    assert window.size().width() == 680 and window.size().height() == 440
+    assert capture.amount.height() >= capture.amount.sizeHint().height()
+    assert capture.save_error_detail.toPlainText() == detail
+    assert capture.save_error_detail.verticalScrollBar().maximum() > 0
+    top = capture.save_error_detail.mapTo(capture.scroll.viewport(), capture.save_error_detail.rect().topLeft()).y()
+    assert 0 <= top < capture.scroll.viewport().height()
+    assert capture.amount.text() == "18.50" and capture.description.text() == "合成午饭"

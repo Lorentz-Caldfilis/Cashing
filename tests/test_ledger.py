@@ -190,3 +190,31 @@ def test_time_descriptions():
     assert describe_day("2026-09-20", now) == "9月20日 星期日"
     assert describe_day("2026-09-20", now, with_year=True) == "2026年9月20日 星期日"
     assert describe_day("2025-01-01", now) == "2025年1月1日 星期三"
+
+
+def test_reset_learning_and_undo_preserve_raw_label(database):
+    from ledger import AUTO
+    ledger = Ledger(database)
+    first = ledger.create(1500, datetime(2026, 9, 20, 12, 0), "星云小站")
+    second = ledger.create(1500, datetime(2026, 9, 20, 13, 0), "星云小站")
+    labelled, label_receipt = ledger.update_undoable(first, category="生活")
+    assert ledger.interpret(database.get_record(second["id"]))["category"] == "生活"
+    reset, receipt = ledger.update_undoable(labelled, category=AUTO)
+    assert not reset["category_by_user"]
+    assert ledger.interpret(database.get_record(second["id"]))["category"] is None
+    ledger.undo_update(receipt)
+    assert ledger.interpret(database.get_record(second["id"]))["category"] == "生活"
+    ledger.undo_update(label_receipt)
+    assert database.user_labels() == []
+
+
+def test_edit_undo_refuses_to_overwrite_a_newer_edit(database):
+    import pytest
+    from database import DatabaseError
+    ledger = Ledger(database)
+    record = ledger.create(100, datetime(2026, 9, 20, 12, 0), "合成记录")
+    edited, receipt = ledger.update_undoable(record, amount_cents=200)
+    ledger.update(edited, amount_cents=300)
+    with pytest.raises(DatabaseError, match="再次修改"):
+        ledger.undo_update(receipt)
+    assert database.get_record(record["id"])["amount_cents"] == 300

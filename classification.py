@@ -1,32 +1,15 @@
-"""Derived category: 生活, 工具, 娱乐 — or None when the evidence is not strong enough.
+"""Local, derived categories from explicit personal votes and typed lexical evidence.
 
-A category is an interpretation, not a fact (Philosophy §2.3). The only category facts are the
-ones the person states in Review; everything else is computed from them and from built-in
-knowledge whenever a record is read, so the interpretation improves as the person corrects it
-and never trains on its own guesses. Layers, as in Philosophy §4.5:
-
-1. The person's own phrase. Every record the person categorised is a vote for that exact
-   description. Votes decay by RECENCY per newer label, the built-in opinion of the phrase adds
-   PRIOR, and a category is taken only when it outweighs the runner-up DOMINANCE times; if none
-   does, the built-in opinion stands (or, without one, nothing is decided). So a first label on
-   something new is learnt at once, one exception (a birthday 午饭 marked 娱乐) does not
-   reinterpret every 午饭, and two consistent corrections do. Choosing 暂未判断 is a vote too.
-2. Phrases inside the text, longest first: the person's labelled phrases (at least MIN_PHRASE
-   characters) and the built-in words of lexicon.py, the person's winning a tie. All must agree;
-   a phrase the person left undecided, or a built-in AMBIGUOUS word without any of the person's
-   phrases beside it, means nothing is decided.
-3. Otherwise nothing is decided. That is not a task for anyone (Philosophy §4.3).
-
-No statistics over character n-grams: on short Chinese descriptions they generalise from
-shared characters (周黑鸭 ~ 烤鸭 ~ 小黄鸭), which measured as the main source of wrong guesses.
-Evaluation, alternatives considered and the numbers behind the constants:
-docs/development/CLASSIFICATION.md. Standard library only; no model files, no network.
+Unknown fragments remain visible to the decision rule. A marketplace, a weak
+character or a personal phrase elsewhere cannot silently erase missing evidence.
+Stored labels, decay and reversible learning remain unchanged; see STUDENT_PHASE4.md.
 """
 from collections import Counter
 import re
 import unicodedata
 from domain import CATEGORIES
 import lexicon
+from classification_evidence import Evidence, Decision, composition, context_pattern, explain_residual, derived_suffix
 
 RECENCY = 0.85        # weight of each older label relative to the next newer one
 PRIOR = 0.8           # the built-in opinion counts a little less than one label of the person's
@@ -36,11 +19,8 @@ MAX_PHRASE = 12       # longer labelled phrases only match themselves exactly (b
 CACHE_LIMIT = 4096
 
 _TOKEN = re.compile(r"[㐀-䶿一-鿿豈-﫿]|[^\W_㐀-䶿一-鿿豈-﫿]+")
+_ITEM_SEPARATOR = re.compile(r"[+、,;|/\n\r]+")
 _UNDECIDED = "?"      # evidence exists but does not settle it (conflict, ambiguity, the person's 暂未判断)
-_AMBIGUOUS = object()
-_NEUTRAL = object()
-_PERSONAL = "personal"
-_BUILTIN = "builtin"
 
 
 def tokens(text):
@@ -53,14 +33,23 @@ def _load_builtin():
     words = {}
     for category, block in lexicon.HEADS.items():
         for word in block.split():
-            words[tokens(word)] = category
+            words[tokens(word)] = ('head', category, 'weak')
     for category, block in lexicon.TERMS.items():
         for word in block.split():
-            words[tokens(word)] = category
+            words[tokens(word)] = ('term', category, 'strong') if len(word) > 1 else ('head', category, 'weak')
     for word in lexicon.AMBIGUOUS.split():
-        words[tokens(word)] = _AMBIGUOUS
-    for word in lexicon.NEUTRAL.split():
-        words[tokens(word)] = _NEUTRAL
+        words[tokens(word)] = ('ambiguous', None, 'none')
+    for word in lexicon.POLYSEMOUS_CONTEXTS:
+        words[tokens(word)] = ('polysemy', None, 'none')
+    for word in lexicon.NEUTRAL.split() + lexicon.CONTEXT.split():
+        words[tokens(word)] = ('context', None, 'none')
+    for word in lexicon.PLATFORMS.split():
+        words[tokens(word)] = ('platform', None, 'none')
+    for span, (kind, category, strength) in list(words.items()):
+        if kind == 'term':
+            for suffix in ('费', '院'):
+                if derived_suffix(''.join(span), suffix):
+                    words[span + tokens(suffix)] = ('term', category, strength)
     return words
 
 
@@ -115,74 +104,144 @@ class Classifier:
 
     # ---- interpretation -------------------------------------------------------------------------
     def classify(self, description):
-        """生活 / 工具 / 娱乐, or None when the evidence does not settle it."""
-        phrase = tokens(description)
-        if not phrase:
-            return None
-        category = self._resolve(phrase)
-        return category if category in CATEGORIES else None
+        """生活 / 工具 / 娱乐, or None when evidence does not settle it."""
+        return self.explain(description).category
 
-    def _resolve(self, phrase):
-        if phrase in self._cache:
-            return self._cache[phrase]
+    def explain(self, description):
+        """Immutable, local explanation; offsets index normalized tokens."""
+        phrase = tokens(description)
+        normalized = unicodedata.normalize("NFKC", description or "").lower()
+        segments = tuple(part for piece in _ITEM_SEPARATOR.split(normalized) if (part := tokens(piece)))
+        boundaries = segments if len(segments) > 1 else ()
+        return self._resolve(phrase, boundaries=boundaries) if phrase else Decision(None, 'empty')
+
+    def _resolve(self, phrase, *, boundaries=()):
+        key = (phrase, boundaries)
+        if key in self._cache:
+            return self._cache[key]
         if phrase in self._phrases:
-            prior = self._builtin(phrase, personal=False)
+            prior = self._builtin(phrase, personal=False, boundaries=boundaries)
             votes = Counter()
             labels = sorted(self._phrases[phrase].values(), key=lambda item: item[0], reverse=True)
             for age, (_, category) in enumerate(labels):
                 votes[category] += RECENCY ** age
-            if prior in CATEGORIES:
-                votes[prior] += PRIOR
-            result = _dominant(votes)
-            if result is _UNDECIDED and prior in CATEGORIES:
-                result = prior  # one exception does not overturn what is otherwise clear
-            elif result is None:
-                result = _UNDECIDED  # the person's own 暂未判断 wins
+            if prior.category in CATEGORIES:
+                votes[prior.category] += PRIOR
+            winner = _dominant(votes)
+            if winner is _UNDECIDED:
+                category = prior.category
+                reason = 'prior_after_exception' if category else 'personal_conflict'
+            else:
+                category = winner
+                reason = 'personal_vote' if category else 'personal_abstention'
+            evidence = (Evidence(0, len(phrase), ''.join(phrase), 'personal', category, 'personal'),)
+            result = Decision(category, reason, evidence + prior.evidence, len(labels))
         else:
-            result = self._builtin(phrase, personal=True)
+            result = self._builtin(phrase, personal=True, boundaries=boundaries)
         if len(self._cache) >= CACHE_LIMIT:
             self._cache.clear()
-        self._cache[phrase] = result
+        self._cache[key] = result
         return result
 
-    def _builtin(self, phrase, *, personal):
-        """What the phrases inside the text say: a category, None (no evidence) or _UNDECIDED."""
-        decided, blocked, ambiguous, own = set(), False, False, False
-        for span, source in self._spans(phrase, personal):
-            if source is _PERSONAL:
-                own = True
-                category = self._resolve(span)
-                if category in CATEGORIES:
-                    decided.add(category)
-                else:
-                    blocked = True
-                continue
-            value = BUILTIN[span]
-            if value is _AMBIGUOUS:
-                ambiguous = True
-            elif value is not _NEUTRAL:
-                decided.add(value)
-        if blocked or (ambiguous and not own) or len(decided) > 1:
-            return _UNDECIDED
-        return decided.pop() if decided else None
+    def _builtin(self, phrase, *, personal, boundaries=()):
+        if boundaries:
+            # Legacy label keys still ignore punctuation. Only derived lexical evidence
+            # gains item boundaries; an explicit whole-description label remains valid.
+            decisions = [self._resolve(part) if personal else self._builtin(part, personal=False)
+                         for part in boundaries]
+            evidence, offset = [], 0
+            for index, (part, result) in enumerate(zip(boundaries, decisions)):
+                if index:
+                    evidence.append(Evidence(offset, offset, '|', 'item_boundary'))
+                evidence.extend(Evidence(e.start + offset, e.end + offset, e.text, e.kind,
+                                         e.category, e.strength) for e in result.evidence)
+                offset += len(part)
+            categories = {result.category for result in decisions}
+            category = next(iter(categories)) if len(categories) == 1 and None not in categories else None
+            reason = 'compatible_items' if category else 'unresolved_items'
+            return Decision(category, reason, tuple(evidence))
+        items = list(self._spans(phrase, personal))
+        resolved = []
+        for item in items:
+            if item.kind == 'unknown':
+                role = explain_residual(item, items)
+                if role:
+                    item = Evidence(item.start, item.end, item.text, role)
+            elif item.kind == 'polysemy':
+                senses = lexicon.POLYSEMOUS_CONTEXTS[item.text]
+                compatible = {senses[near.text] for near in items
+                              if near.text in senses and near.kind in {'term', 'head'}
+                              and (near.end == item.start or near.start == item.end)}
+                if len(compatible) == 1:
+                    item = Evidence(item.start, item.end, item.text, 'contextual_sense', compatible.pop(), 'strong')
+            resolved.append(item)
+        evidence = tuple(resolved)
+        decided = {item.category for item in evidence if item.category in CATEGORIES}
+        if len(decided) > 1:
+            return Decision(None, 'conflicting_categories', evidence)
+        if any(item.kind == 'personal' and item.category is None for item in evidence):
+            return Decision(None, 'personal_abstention', evidence)
+        if any(item.kind in {'ambiguous', 'polysemy'} for item in evidence):
+            return Decision(None, 'unresolved_ambiguity', evidence)
+        if any(item.kind == 'unknown' for item in evidence):
+            return Decision(None, 'unexplained_fragment', evidence)
+        if not decided:
+            return Decision(None, 'no_purpose_evidence', evidence)
+        if sum(item.kind == 'head' for item in evidence) > 1 and not any(
+                item.kind in {'term', 'composition', 'personal'} for item in evidence):
+            return Decision(None, 'unvalidated_heads', evidence)
+        if any(item.kind == 'platform' for item in evidence) and not any(
+                item.strength in {'strong', 'personal'} for item in evidence):
+            return Decision(None, 'weak_platform_evidence', evidence)
+        return Decision(decided.pop(), 'compatible_evidence', evidence)
 
     def _spans(self, phrase, personal):
-        """Forward longest match; the person's phrase wins a tie with a built-in word."""
-        longest = max(_BUILTIN_LONGEST, self._longest if personal else 0)
-        i = 0
-        while i < len(phrase):
-            for n in range(min(longest, len(phrase) - i), 0, -1):
-                span = phrase[i:i + n]
+        """Cover known lexical units before preferring longer matches.
+
+        Forward greedy matching splits 买水果 into 买水 + 果. This bounded dynamic
+        program prefers 买 + 水果 without scoring or favouring any category.
+        Unknown tokens remain in the winning path; longer units win coverage ties.
+        """
+        longest = max(_BUILTIN_LONGEST, self._longest if personal else 0, 8)
+        count = len(phrase)
+        scores, paths = [None] * (count + 1), [None] * (count + 1)
+        scores[count], paths[count] = (0, 0, 0), ()
+        for i in range(count - 1, -1, -1):
+            tail = scores[i + 1]
+            scores[i] = (tail[0] - 1, tail[1], tail[2] - 1)
+            paths[i] = (Evidence(i, i + 1, phrase[i], 'unknown'),) + paths[i + 1]
+            for n in range(min(longest, count - i), 0, -1):
+                span, item = phrase[i:i + n], None
+                text = ''.join(span)
                 if (personal and span in self._phrases and span != phrase
-                        and n <= MAX_PHRASE and sum(map(len, span)) >= MIN_PHRASE):
-                    yield span, _PERSONAL
-                    break
-                if span in BUILTIN:
-                    yield span, _BUILTIN
-                    break
+                        and n <= MAX_PHRASE and len(text) >= MIN_PHRASE):
+                    item = Evidence(i, i + n, text, 'personal', self._resolve(span).category, 'personal')
+                elif span in BUILTIN:
+                    kind, category, strength = BUILTIN[span]
+                    item = Evidence(i, i + n, text, kind, category, strength)
+                elif n <= 8 and composition(text):
+                    item = Evidence(i, i + n, text, 'composition', composition(text), 'weak')
+                elif context_pattern(text):
+                    item = Evidence(i, i + n, text, context_pattern(text))
+                if item is not None:
+                    tail = scores[i + n]
+                    score = (tail[0], tail[1] + n * n, tail[2] - 1)
+                    if score > scores[i]:
+                        scores[i], paths[i] = score, (item,) + paths[i + n]
+        pending = None
+        for item in paths[0]:
+            if item.kind == 'unknown':
+                if pending is None:
+                    pending = item
+                else:
+                    pending = Evidence(pending.start, item.end, pending.text + item.text, 'unknown')
             else:
-                n = 1
-            i += n
+                if pending is not None:
+                    yield pending
+                    pending = None
+                yield item
+        if pending is not None:
+            yield pending
 
 
 

@@ -153,11 +153,11 @@ def test_utility_is_a_quiet_overlay_on_both_spaces(window, qtbot, tmp_path, data
     window.switch_to(CAPTURE, animate=False)
     assert utility.isVisible()
     actions = [a.text() for a in window.utility_menu.actions() if not a.isSeparator()]
-    assert actions == ["打开数据目录", "关于 Cashing"]
+    assert actions == ["打开数据目录", "备份账本…", "背景图片…", "恢复默认背景", "关于 Cashing"]
     assert str(database.path) in window.about_text()
     assert window.data_directory == tmp_path
     # No settings, no third space: the menu is the whole utility surface.
-    assert isinstance(utility.menu(), QMenu) and len(actions) == 2
+    assert isinstance(utility.menu(), QMenu) and len(actions) == 5
 
 
 def test_close_sits_inside_the_field_where_the_magnifier_stood(page, qtbot):

@@ -1,5 +1,11 @@
 # Cashing 自适应分类：设计与评估
 
+> 当前证据分段、保守弃权和固定语料结果见 [第四阶段报告](STUDENT_PHASE4.md)；下文为历史设计与模拟器记录。
+
+> 后续审查发现平台词中性化会放大弱子串误判，该词表调整已保守撤回；见 [第三阶段修复](STUDENT_PHASE3.md)。第二阶段数字保留为历史结果，不代表当前分类表现。
+
+> 2026-09-30 第二阶段：仅将淘宝、京东、拼多多、网购移为中性语境，不再否定明确商品证据。固定场景、来源/学习修复和实测边界见 [第二阶段报告](STUDENT_PHASE2.md)。下文历史基准不是本轮新的盲测。
+
 **状态：** 已实现（schema v3，`classification.py` + `lexicon.py`）。
 **依据：** Design Philosophy §2.3、§4、§5、§8；IA §18–§19。本文是 Philosophy §22 所说的 Adaptive Classification Specification 的实现记录，不是冻结规范。
 
