@@ -124,7 +124,7 @@ class DayHeading(QLabel):
     def __init__(self, text, parent=None):
         super().__init__(text, parent)
         self.setFont(theme.font(14, theme.MEDIUM))
-        self.setStyleSheet(f"color: {theme.TEXT_2}; padding-left: 10px;")
+        theme.set_style(self, "color: {TEXT_2}; padding-left: 10px;")
 
 
 class DeleteEdge(QWidget):
@@ -364,7 +364,7 @@ class RecordRow(QWidget):
         self.grid.setVerticalSpacing(0)
         self.time = FieldLabel()
         self.time.setFont(theme.font(13, tabular=True))
-        self.time.setStyleSheet(f"color: {theme.TEXT_2};")
+        theme.set_style(self.time, "color: {TEXT_2};")
         self.time.setContentsMargins(0, TIME_BASELINE_PAD, 0, 0)
         self.time.setFixedHeight(LINE1_HEIGHT)
         self.grid.addWidget(self.time, 0, 0, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
@@ -375,7 +375,7 @@ class RecordRow(QWidget):
         self.grid.addWidget(self.amount, 0, 1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.description = ElidedLabel()
         self.description.setFont(theme.font(16))
-        self.description.setStyleSheet(f"color: {theme.TEXT};")
+        theme.set_style(self.description, "color: {TEXT};")
         self.description.setFixedHeight(LINE2_HEIGHT)
         self.grid.addWidget(self.description, 1, 0)
         self.category = QWidget()
@@ -386,14 +386,14 @@ class RecordRow(QWidget):
         category_layout.addStretch()
         self.category_origin = QLabel()
         self.category_origin.setFont(theme.font(11))
-        self.category_origin.setStyleSheet(f"color: {theme.TEXT_3};")
+        theme.set_style(self.category_origin, "color: {TEXT_3};")
         category_layout.addWidget(self.category_origin)
         self.category_dot = QLabel()
         self.category_dot.setFixedSize(6, 6)
         category_layout.addWidget(self.category_dot, 0, Qt.AlignmentFlag.AlignVCenter)
         self.category_name = QLabel()
         self.category_name.setFont(theme.font(13))
-        self.category_name.setStyleSheet(f"color: {theme.TEXT_3};")
+        theme.set_style(self.category_name, "color: {TEXT_3};")
         category_layout.addWidget(self.category_name)
         self.grid.addWidget(self.category, 1, 1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.hint = QLabel()
@@ -417,8 +417,9 @@ class RecordRow(QWidget):
         known = category in CATEGORIES
         self.category_name.setText(category if known else UNKNOWN_LABEL)
         self.category_origin.setText("自选" if record.get("category_by_user") else "自动")
-        self.category_dot.setStyleSheet(
-            f"background: {theme.CATEGORY_COLORS[category]}; border-radius: 3px;" if known else "background: transparent;")
+        token = {"生活": "LIFE", "工具": "TOOL", "娱乐": "FUN"}.get(category)
+        theme.set_style(self.category_dot,
+                        "background: {" + token + "}; border-radius: 3px;" if known else "background: transparent;")
         self.category_dot.setVisible(known)
         self.category.setToolTip("你指定的分类，会用于本机学习；可在编辑中恢复自动判断。"
                                  if record.get("category_by_user") else

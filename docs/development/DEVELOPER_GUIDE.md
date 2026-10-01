@@ -65,14 +65,15 @@ $packageName = "Cashing-candidate-$($commit.Substring(0,12))-windows"
 Get-FileHash "release/$packageName.zip" -Algorithm SHA256
 ```
 
-`package_release.py` 默认按精确提交命名候选，要求 tracked 文件干净且构建来源一致，拒绝覆盖同名产物。后续提交对应的目录名应根据新提交更新。正式版本变更仍需同步应用与 Windows 版本资源、README 和发行资料；通常不要替换同名已交付包。本次所有者明确授权保持 1.2.0 更新预发行：先保存旧包和标签/资产元数据，通过新候选验证后另存旧交付目录，再重新生成同名包、更新对应源码标签和远端摘要。候选流程见 [Windows 候选构建](../WINDOWS_CANDIDATE.md)。保留源码、发行目录、ZIP 解压副本的独立结果，并记录摘要与失败。Git 忽略 `release/`、`build/`、`dist/` 和 `work/`。
+`package_release.py` 默认按精确提交命名候选，要求 tracked 文件干净且构建来源一致，拒绝覆盖同名产物。后续提交对应的目录名应根据新提交更新。正式版本变更仍需同步应用与 Windows 版本资源、README 和发行资料；通常不要替换同名已交付包。本次所有者明确授权保持 1.2.0 更新预发行：先保存原标签/资产元数据，另存旧交付目录和 ZIP，再重新生成同名包；完成源码、EXE、解压包验证及远端 CI 后，才更新对应源码标签、远端资产与摘要。候选流程见 [Windows 候选构建](../WINDOWS_CANDIDATE.md)。保留源码、发行目录、ZIP 解压副本的独立结果，并记录摘要与失败。Git 忽略 `release/`、`build/`、`dist/` 和 `work/`。
 
 本地构建不等于 GitHub 发布。推送、标签、Release 页面与服务器资产摘要须在实际操作并核对后记录；当前开发候选与正式 Release 的区别见 [状态快照](../STATUS.md)。
 
 ## 当前边界
 
 - Capture 新增可选用途：不选时自动判断，明确选择写入个人标签。草稿、撤销和下一笔保护均包含用途，不更改数据库 schema。
-- 主窗口使用 `QWidget#space` 与固定浅色主题。背景导入、绘制与菜单入口已移除；旧 `appearance-background.png` 不读取、不改写、不自动删除，仍由 Git 忽略及打包私人文件检查排除。
+- `ui/theme.py` 在启动时通过 `QStyleHints.colorScheme()` 选择浅色/深色，监听方案和调色板通知，合并到下一个事件循环更新 Qt 调色板及应用 QSS。`theme.set_style` 保留局部控件的语义模板；图标和环形图在绘制时取当前 token，不缓存旧颜色。不重建 Capture/Review 或查询账本，切换保留输入、编辑、草稿和撤销。原生文件对话框的外观由系统负责；不覆盖系统设置，也不提供手动主题入口。
+- 主窗口仍使用 `QWidget#space`。背景导入、绘制与菜单入口已移除；旧 `appearance-background.png` 不读取、不改写、不自动删除，仍由 Git 忽略及打包私人文件检查排除。
 - EXE 使用多尺寸 ICO，运行图标通过 `__file__` 相对 assets 取得；PyInstaller spec 只带运行资源，不带生成原图/提示词。包内 MIT、第三方授权与对应源码归档缺一不可。
 
 - schema v3 可迁移 v1/v2；迁移前的完整副本是 `ledger.sqlite3.before-v3.bak`。无法识别或损坏的账本应停止并报告，不得自动清空重建。

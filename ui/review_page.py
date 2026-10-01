@@ -83,15 +83,15 @@ class DonutChart(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedSize(DONUT_SIZE, DONUT_SIZE)
-        self.segments = []  # [(color, cents)]
+        self.segments = []  # [(category, cents)]; resolve colours at paint time
         self.setAccessibleName("消费结构环形图")
 
     def set_totals(self, totals):
         """Without a classified share there is no proportion to show, so there is no ring:
         a grey circle over nothing but unjudged records would be decoration."""
-        self.segments = [(theme.CATEGORY_COLORS[c], totals[c]) for c in CATEGORIES if totals[c] > 0]
+        self.segments = [(c, totals[c]) for c in CATEGORIES if totals[c] > 0]
         if self.segments and totals.get("unknown", 0) > 0:
-            self.segments.append((theme.UNKNOWN_COLOR, totals["unknown"]))
+            self.segments.append(("unknown", totals["unknown"]))
         self.update()
 
     def paintEvent(self, event):
@@ -103,9 +103,9 @@ class DonutChart(QWidget):
         rect = QRectF(RING_WIDTH / 2, RING_WIDTH / 2, self.width() - RING_WIDTH, self.height() - RING_WIDTH)
         gap = 2.5 if len(self.segments) > 1 else 0.0  # degrees of breathing room between arcs
         start = 90.0
-        for color, cents in self.segments:
+        for category, cents in self.segments:
             span = 360.0 * cents / total
-            pen = QPen(QColor(color))
+            pen = QPen(QColor(theme.CATEGORY_COLORS.get(category, theme.UNKNOWN_COLOR)))
             pen.setWidthF(RING_WIDTH)
             pen.setCapStyle(Qt.PenCapStyle.FlatCap)
             painter.setPen(pen)
@@ -115,23 +115,25 @@ class DonutChart(QWidget):
 
 
 class CategoryLine(QWidget):
-    def __init__(self, name, color, *, weak=False, parent=None):
+    def __init__(self, name, *, weak=False, parent=None):
         super().__init__(parent)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
         self.dot = QLabel()
         self.dot.setFixedSize(6, 6)  # integer radius only: Qt squares off a fractional one
-        self.dot.setStyleSheet(f"background: {color}; border-radius: 3px;" if color else "background: transparent;")
+        token = {"生活": "LIFE", "工具": "TOOL", "娱乐": "FUN"}.get(name)
+        theme.set_style(self.dot, "background: {" + token + "}; border-radius: 3px;"
+                        if token else "background: transparent;")
         layout.addWidget(self.dot, 0, Qt.AlignmentFlag.AlignVCenter)
         self.name = QLabel(name)
         self.name.setFont(theme.font(13 if weak else 14))
-        self.name.setStyleSheet(f"color: {theme.TEXT_3 if weak else theme.TEXT_2};")
+        theme.set_style(self.name, "color: {TEXT_3};" if weak else "color: {TEXT_2};")
         layout.addWidget(self.name)
         layout.addStretch()
         self.amount = QLabel("¥0.00")
         self.amount.setFont(theme.font(13 if weak else 15, tabular=True))
-        self.amount.setStyleSheet(f"color: {theme.TEXT_3 if weak else theme.TEXT};")
+        theme.set_style(self.amount, "color: {TEXT_3};" if weak else "color: {TEXT};")
         self.amount.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(self.amount)
 
@@ -160,7 +162,7 @@ class SummaryBlock(QWidget):
         total_row.addStretch()
         self.total = QLabel("0.00")
         self.total.setFont(theme.font(44, theme.MEDIUM, tabular=True))
-        self.total.setStyleSheet(f"color: {theme.TEXT};")
+        theme.set_style(self.total, "color: {TEXT};")
         self.total.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.total.setAccessibleName("本月总支出")
         metrics = QFontMetrics(self.total.font())
@@ -183,14 +185,14 @@ class SummaryBlock(QWidget):
         lines_layout = QVBoxLayout(lines)
         lines_layout.setContentsMargins(0, 0, 0, 0)
         lines_layout.setSpacing(10)
-        self.lines = {c: CategoryLine(c, theme.CATEGORY_COLORS[c]) for c in CATEGORIES}
+        self.lines = {c: CategoryLine(c) for c in CATEGORIES}
         for line in self.lines.values():
             lines_layout.addWidget(line)
         # Not a fourth category: a quiet sentence that explains the remainder, with no dot,
         # no warning colour and nothing to act on. It disappears entirely at zero.
         self.unknown_note = QLabel()
         self.unknown_note.setFont(theme.font(12))
-        self.unknown_note.setStyleSheet(f"color: {theme.TEXT_3};")
+        theme.set_style(self.unknown_note, "color: {TEXT_3};")
         self.unknown_note.setTextFormat(Qt.TextFormat.PlainText)
         self.unknown_note.setFixedHeight(16)  # a reserved line: appearing must not move the ring
         self.unknown_note.setContentsMargins(DOT_LEAD, 0, 0, 0)  # on the text edge, like the names
@@ -214,7 +216,7 @@ class SummaryBlock(QWidget):
 
         self.empty = QLabel("本月暂无记录")
         self.empty.setFont(theme.font(14))
-        self.empty.setStyleSheet(f"color: {theme.TEXT_3};")
+        theme.set_style(self.empty, "color: {TEXT_3};")
         self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.empty)
         self.empty_action = QPushButton("记一笔")
@@ -559,7 +561,7 @@ class ReviewPage(QWidget):
         column.addWidget(self.failure)
         self.no_results = QLabel()
         self.no_results.setFont(theme.font(14))
-        self.no_results.setStyleSheet(f"color: {theme.TEXT_3};")
+        theme.set_style(self.no_results, "color: {TEXT_3};")
         self.no_results.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.no_results.setTextFormat(Qt.TextFormat.PlainText)
         self.no_results.hide()
@@ -601,7 +603,7 @@ class ReviewPage(QWidget):
         self.page_count = QLabel()
         self.page_count.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.page_count.setFont(theme.font(12))
-        self.page_count.setStyleSheet(f"color: {theme.TEXT_3};")
+        theme.set_style(self.page_count, "color: {TEXT_3};")
         for button in (self.page_previous, self.page_next):
             button.setObjectName("quiet")
         self.page_previous.clicked.connect(lambda: self._change_result_page(-1))

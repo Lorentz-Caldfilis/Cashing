@@ -12,6 +12,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
 from database import Database, DatabaseError
 from paths import data_directory, prepare_runtime, prepare_smoke_directory
+from ui import theme
 
 
 def main(argv=None):
@@ -23,6 +24,14 @@ def main(argv=None):
         parser.error("--smoke-test 必须同时指定独立的 --data-dir")
     QLocale.setDefault(QLocale('zh_CN'))
     app = QApplication(sys.argv[:1])
+    if args.smoke_test:
+        import os
+        # Only the isolated verification process may override Qt's OS scheme hint.
+        scheme = os.environ.get("CASHING_SMOKE_COLOR_SCHEME", "system")
+        if scheme in {"light", "dark"}:
+            from PySide6.QtCore import Qt
+            app.styleHints().setColorScheme(Qt.ColorScheme.Dark if scheme == "dark" else Qt.ColorScheme.Light)
+    theme.install(app)
     app.setApplicationName("Cashing")
     app.setOrganizationName("Cashing")
     app.setApplicationVersion("1.2.0")

@@ -13,9 +13,11 @@ from time import monotonic
 from datetime import datetime
 from PySide6.QtCore import QTimer, Qt, QPoint
 from PySide6.QtTest import QTest
+from PySide6.QtGui import QColor, QPalette
 from database import Database
 from draft import DraftStore
 from ui.main_window import CAPTURE, REVIEW
+from ui import theme
 
 DRAFT_AMOUNT, DRAFT_TEXT = "12.5", "自动验收草稿"
 
@@ -29,6 +31,16 @@ def schedule_smoke_check(app, window, database, directory):
               "screen_available": [app.primaryScreen().availableGeometry().width(),
                                    app.primaryScreen().availableGeometry().height()]}
     result["clipboard_mode"] = os.environ.get("CASHING_SMOKE_CLIPBOARD_MODE", "system")
+    result["color_scheme_request"] = os.environ.get("CASHING_SMOKE_COLOR_SCHEME", "system")
+    result["initial_color_scheme"] = "dark" if theme.IS_DARK else "light"
+
+    def toggle_scheme():
+        dark = not theme.IS_DARK
+        app.styleHints().setColorScheme(Qt.ColorScheme.Dark if dark else Qt.ColorScheme.Light)
+        settle(80)
+        check(theme.IS_DARK == dark, "qt_scheme_notification_updates_theme")
+        check(app.palette().color(QPalette.ColorRole.Window) == QColor(theme.BG),
+              "native_palette_matches_theme")
 
     def check(condition, message):
         if not condition:
@@ -99,6 +111,8 @@ def schedule_smoke_check(app, window, database, directory):
             check(app.property("chinese_translation_loaded") is True, "chinese_translation_loaded")
             check(window.current_index() == CAPTURE and capture.amount.hasFocus(), "starts_in_capture_with_amount_focus")
             check(window.grab().save(str(directory / "01-capture.png")), "capture_screenshot")
+            request = result["color_scheme_request"]
+            check(request == "system" or theme.IS_DARK == (request == "dark"), "requested_scheme_at_startup")
 
             # New capture path: clipboard fills a reviewable draft, then autosaves it.
             if result["clipboard_mode"] == "parser":
@@ -116,6 +130,14 @@ def schedule_smoke_check(app, window, database, directory):
             check(not database.get_records_by_month(2026, 9), "paste_does_not_save_record")
             settle(450)
             check(DraftStore(directory).load() == capture.draft(), "draft_saved_before_close")
+            draft_before_theme = capture.draft()
+            capture.description.setFocus()
+            capture.description.selectAll()
+            toggle_scheme()
+            check(capture.draft() == draft_before_theme and capture.description.hasFocus()
+                  and capture.description.selectedText() == "合成午饭", "theme_keeps_capture_draft_and_focus")
+            check(window.grab().save(str(directory / "01-capture-alternate.png")), "alternate_capture_screenshot")
+            toggle_scheme()
             capture._reset_inputs()
 
             # Optional purpose, raw origin, undo, and the fixed light appearance.
@@ -189,6 +211,15 @@ def schedule_smoke_check(app, window, database, directory):
                   "keyboard_undo_restores_personal_label")
             click_row(row, "amount")
             row.amount_edit.setText("60.01")
+            row.amount_edit.setFocus()
+            row.amount_edit.selectAll()
+            raw_before_theme = database.get_record(row.record["id"])
+            toggle_scheme()
+            check(row.editing and review.editing_row is row and row.amount_edit.hasFocus()
+                  and row.amount_edit.selectedText() == "60.01"
+                  and database.get_record(row.record["id"]) == raw_before_theme, "theme_keeps_unsaved_row_edit")
+            check(window.grab().save(str(directory / "02-review-alternate.png")), "alternate_review_screenshot")
+            toggle_scheme()
             QTest.keyClick(row.amount_edit, Qt.Key.Key_Return)
             app.processEvents()
             check(not row.editing and review.summary.total.text() == "188.51", "amount_edit_committed_on_enter")
