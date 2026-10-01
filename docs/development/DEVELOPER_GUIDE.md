@@ -73,6 +73,7 @@ Get-FileHash "release/$packageName.zip" -Algorithm SHA256
 
 - Capture 新增可选用途：不选时自动判断，明确选择写入个人标签。草稿、撤销和下一笔保护均包含用途，不更改数据库 schema。
 - `ui/theme.py` 在启动时通过 `QStyleHints.colorScheme()` 选择浅色/深色，监听方案和调色板通知，合并到下一个事件循环更新 Qt 调色板及应用 QSS。`theme.set_style` 保留局部控件的语义模板；图标和环形图在绘制时取当前 token，不缓存旧颜色。不重建 Capture/Review 或查询账本，切换保留输入、编辑、草稿和撤销。原生文件对话框的外观由系统负责；不覆盖系统设置，也不提供手动主题入口。
+  [Qt 6.11 官方说明](https://doc.qt.io/qt-6.11/qstylehints.html#colorScheme-prop)指出方案信号发出时旧调色板仍生效，因此需要合并通知再同步。`verify_release.py` 的五次进程覆盖 system/light/dark 启动及运行中切换；方案覆盖仅在隔离 `--smoke-test` 生效，无显示平台单测使用合成通知，真实 Windows 设置操作按人工验收表另测。
 - 主窗口仍使用 `QWidget#space`。背景导入、绘制与菜单入口已移除；旧 `appearance-background.png` 不读取、不改写、不自动删除，仍由 Git 忽略及打包私人文件检查排除。
 - EXE 使用多尺寸 ICO，运行图标通过 `__file__` 相对 assets 取得；PyInstaller spec 只带运行资源，不带生成原图/提示词。包内 MIT、第三方授权与对应源码归档缺一不可。
 

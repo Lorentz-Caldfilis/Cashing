@@ -1,10 +1,18 @@
 # Cashing 状态快照
 
-## 2026-10-01 1.2.0 系统颜色更新（进行中）
+## 2026-10-01 1.2.0 系统颜色更新
 
-所有者要求跟随系统浅色/深色，解决反色导致文字不清，保持 1.2.0 和同版本预发行更新要求。计划统一主题 token、Qt 调色板与已存在控件的颜色，运行中同步系统变化，保留草稿、编辑和撤销状态；重新执行隔离回归、原生 GUI、EXE/解压验证及 Windows CI 后更新交付。下文背景移除版的结果是历史证据，不能当作本轮系统颜色验证。
+已实现跟随系统浅色/深色：统一主题 token、Qt 调色板及应用/局部 QSS，运行中响应方案与调色板变化，已存在的文字、图标和环形图同步更新。占位文字使用明确颜色；主要阅读文字、提示、选区及主按钮状态的 token 对比度回归通过（≥ 4.5:1），不声称完整无障碍认证。切换不重建页面、不读取或改写账本，保留草稿、编辑、焦点、选区和撤销。用途与图标保留，图片背景仍移除；应用及 Windows 文件/产品版本继续 **1.2.0**。
 
-系统方案通知、应用调色板、应用及局部 QSS、绘制时图标/图表颜色已接入；占位文字改为明确颜色，保持选择文字和按钮各状态的阅读对比度。原生 Windows 定向回归 **12 passed / 2.69s**（`work/system-theme-20261001/native-target-tests.txt`），含实时切换后草稿、焦点、选区、编辑、撤销和既有弹层颜色。无显示平台的系统提示使用明确的合成通知，不能冒充 Windows 设置操作。完整回归和发行验收进行中；早期定向失败记录保留，修正了无显示平台无方案 API、透明编辑框阅读背景判断和提示/错误色对比度。
+本机完整隔离回归 **419 passed、2 skipped / 230.17s**（跳过主机禁止的文件系统链接），原生 Windows 定向回归 **12 passed / 2.69s**；报告 `work/system-theme-20261001/tests.xml`、`tests.txt`、`native-target-tests.txt`。早期失败记录保留，修正无显示平台无方案 API、透明编辑框阅读背景判断及提示/错误色对比度。无显示平台的主题提示明确合成，不当成 Windows 设置操作。
+
+源码、最终 EXE、ZIP 解压副本各五次原生 GUI **PASS**，涵盖 system/light/dark 启动、双向实时 Qt 方案变化、未保存输入和编辑保留、125%/150%/200% 缩放及重启；报告 `work/system-theme-source-01/`、`work/system-theme-frozen-01/`、`work/system-theme-extracted-01/`。本机 system 初始为 dark；固定 light 验收及其反向切换均通过。原目录/解压副本各 430 个 manifest 文件核对、默认路径两次启动持久化和安装目录不变通过。本机完整 GUI 仍是明确的 parser 剪贴板限定模式；浅/深截图已查看。自动流程没有操作 Windows 设置，真实设置操作和原生文件对话框体验仍在 MANUAL_ACCEPTANCE.md 中为未测。
+
+[Windows CI](https://github.com/Lorentz-Caldfilis/Cashing/actions/runs/36876281708) 精确 head `da4cdd70b6d198843a88f9c5e6245c4175b28e24` **success**：**421 passed、0 skipped / 78.45s**，源码和解压 EXE 各五次 system 剪贴板模式真实 GUI 通过，含浅深色及实时通知，解压 397 个 manifest 文件与默认路径重启通过。CI system 初始 light，dark 覆盖与反向切换通过。日志/JUnit/GUI 证据保存在 `work/system-theme-20261001/ci-36876281708.txt`、`ci-evidence/`。[PR #4](https://github.com/Lorentz-Caldfilis/Cashing/pull/4) 已合并，合并提交 `bf3dd0c1d3f66971cdb784bc4f06921b0d4bc4a2` 的 tree 与真实构建 head 一致，本机 main 已同步。
+
+本机 `运行Cashing.bat` / `测试Cashing.bat` 继续指向新版 `release/Cashing-v1.2.0-windows/Cashing/Cashing.exe`。上版原目录/ZIP/摘要完整另存 `release/previous-v1.2.0-before-system-colors-5c876ad58269/`，原标签及资产/说明保存在 `work/system-theme-20261001/previous-*.json`；未打开正式账本或已有手动试用账本。
+
+[v1.2.0 Preview](https://github.com/Lorentz-Caldfilis/Cashing/releases/tag/v1.2.0) 的同名资产已更新，非 draft、prerelease，标签及包内 BUILD_SOURCE 均为上述 `da4cdd7`。ZIP SHA-256 `c34ca750422ccd122a186f077fc11a055ace302417154eaf5756fdf96f90af9c`；EXE `99fc5c40d26e0d10ddfa406e22da1616ad21e1c3f9294cc0af4086e1c6c0412a`。ZIP 和摘要文件的服务器 digest 均与本机一致，记录 `work/system-theme-20261001/updated-release.json`、`delivery.json`。包内 MIT、第三方原始许可、对应源码、替换说明及构建身份保留；仓库继续 private，未声称签名或人工设备验收完成。下文背景移除版结果仅作历史证据。
 
 ## 2026-10-01 1.2.0 背景移除更新
 
