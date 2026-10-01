@@ -10,6 +10,7 @@ import logging
 import os
 import tempfile
 from pathlib import Path
+from domain import CATEGORIES
 
 DRAFT_FILE = "draft.json"
 
@@ -19,10 +20,11 @@ class Draft:
     amount_text: str = ""
     description: str = ""
     when: str = ""  # canonical local time or "" (auto = now)
+    category: str | None = None
 
     @property
     def is_empty(self):
-        return not self.amount_text.strip() and not self.description.strip()
+        return not self.amount_text.strip() and not self.description.strip() and self.category is None
 
     def when_as_datetime(self):
         if not self.when:
@@ -41,8 +43,11 @@ class DraftStore:
         """Return the stored draft or None; an unreadable file is ignored, never fatal."""
         try:
             payload = json.loads(self.path.read_text("utf-8"))
+            category = payload.get("category")
+            if category not in CATEGORIES:
+                category = None
             draft = Draft(str(payload.get("amount_text", "")), str(payload.get("description", "")),
-                          str(payload.get("when", "")))
+                          str(payload.get("when", "")), category)
         except (OSError, ValueError, TypeError, AttributeError):
             return None
         return None if draft.is_empty else draft

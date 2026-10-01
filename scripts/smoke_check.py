@@ -5,6 +5,7 @@ Review, in-place edit, delete edge, undo, search, month navigation, then a
 restart check (persistence + draft) on the second run in the same directory.
 """
 import json
+import os
 import socket
 import sys
 import traceback
@@ -27,6 +28,7 @@ def schedule_smoke_check(app, window, database, directory):
               "window_size": [window.width(), window.height()],
               "screen_available": [app.primaryScreen().availableGeometry().width(),
                                    app.primaryScreen().availableGeometry().height()]}
+    result["clipboard_mode"] = os.environ.get("CASHING_SMOKE_CLIPBOARD_MODE", "system")
 
     def check(condition, message):
         if not condition:
@@ -59,6 +61,11 @@ def schedule_smoke_check(app, window, database, directory):
 
     def exercise():
         try:
+            # Native keyboard shortcuts require an active window. Automation can
+            # launch behind the editor; wait for real activation before driving it.
+            window.raise_()
+            window.activateWindow()
+            check(QTest.qWaitForWindowActive(window, 5000), "native_window_active")
             def blocked(*args, **kwargs):
                 raise AssertionError("Unexpected network access")
             socket.socket.connect = blocked
@@ -94,14 +101,46 @@ def schedule_smoke_check(app, window, database, directory):
             check(window.grab().save(str(directory / "01-capture.png")), "capture_screenshot")
 
             # New capture path: clipboard fills a reviewable draft, then autosaves it.
-            app.clipboard().setText("￥１８．５０ 合成午饭")
-            QTest.keyClick(capture.amount, Qt.Key.Key_V, Qt.KeyboardModifier.ControlModifier)
+            if result["clipboard_mode"] == "parser":
+                check(capture.paste_entry("￥１８．５０ 合成午饭"), "synthetic_paste_parser_only")
+            else:
+                app.clipboard().setText("￥１８．５０ 合成午饭")
+                start = monotonic()
+                while app.clipboard().text() != "￥１８．５０ 合成午饭" and monotonic() - start < 2:
+                    QTest.qWait(50)
+                    app.clipboard().setText("￥１８．５０ 合成午饭")
+                check(app.clipboard().text() == "￥１８．５０ 合成午饭", "system_clipboard_available")
+                QTest.keyClick(capture.amount, Qt.Key.Key_V, Qt.KeyboardModifier.ControlModifier)
             check(capture.amount.text() == "18.50" and capture.description.text() == "合成午饭",
                   "single_entry_clipboard_fills_inputs")
             check(not database.get_records_by_month(2026, 9), "paste_does_not_save_record")
             settle(450)
             check(DraftStore(directory).load() == capture.draft(), "draft_saved_before_close")
             capture._reset_inputs()
+
+            # Optional purpose, raw origin, undo, and actual background persistence.
+            capture.amount.setText("9")
+            capture.description.setText("合成用途选择")
+            capture.select_category("娱乐")
+            capture.record()
+            selected = database.get_records_by_month(capture.ledger.now().year, capture.ledger.now().month)[0]
+            check(selected["category"] == "娱乐" and selected["category_by_user"] == 1,
+                  "capture_personal_category_stored")
+            window.toast._run_undo()
+            check(capture.selected_category == "娱乐", "undo_restores_capture_category")
+            capture._reset_inputs()
+            from PySide6.QtGui import QImage, QColor
+            image = QImage(80, 60, QImage.Format.Format_RGB32)
+            image.fill(QColor("#456784"))
+            image_path = directory / "synthetic-background.png"
+            check(image.save(str(image_path)), "synthetic_background_created")
+            window._apply_background(window.background_store.import_image(image_path))
+            check(not window.background_store.load().isNull(), "local_background_persists")
+            check(window.grab().save(str(directory / "01-background.png")), "background_screenshot")
+            window.reset_background()
+            check(window.centralWidget().image.isNull() and not window.background_store.path.exists(),
+                  "background_reset_preserves_ledger")
+            check(not window.windowIcon().isNull(), "application_icon_loaded")
 
             # Capture: local error, then three records through the Enter path.
             QTest.keyClicks(capture.amount, "0")

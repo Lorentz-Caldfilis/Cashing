@@ -66,12 +66,16 @@ class Ledger:
             self._classifier.drop_label(stored["id"])
 
     # ---- Capture -----------------------------------------------------
-    def create(self, amount_cents, when, description=""):
-        """Store the facts only; the category is derived whenever the record is read."""
+    def create(self, amount_cents, when, description="", *, category=UNSET):
+        """An optional personal category is a label; omission keeps automatic judgement."""
         description = description.strip()
-        validate_record(amount_cents, when, None, description)
-        record_id = self.database.add_record(amount_cents, when, None, description)
-        return self.interpret(self.database.get_record(record_id))
+        chosen = None if category is UNSET else category
+        validate_record(amount_cents, when, chosen, description)
+        record_id = self.database.add_record(amount_cents, when, chosen, description,
+                                            category_by_user=category is not UNSET)
+        stored = self.database.get_record(record_id)
+        self._learn(stored)
+        return self.interpret(stored)
 
     def undo_create(self, record_id):
         self.database.delete_record(record_id)

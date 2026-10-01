@@ -5,8 +5,10 @@ import logging
 from logging.handlers import RotatingFileHandler
 import sys
 import traceback
+from pathlib import Path
 
 from PySide6.QtCore import QLibraryInfo, QTranslator, QLocale
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
 from database import Database, DatabaseError
 from paths import data_directory, prepare_runtime, prepare_smoke_directory
@@ -23,7 +25,11 @@ def main(argv=None):
     app = QApplication(sys.argv[:1])
     app.setApplicationName("Cashing")
     app.setOrganizationName("Cashing")
-    app.setApplicationVersion("1.1.0")
+    app.setApplicationVersion("1.2.0")
+    app.setWindowIcon(QIcon(str(Path(__file__).resolve().parent / "assets/cashing-icon.ico")))
+    if sys.platform == "win32":
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Lorentz-Caldfilis.Cashing")
     translator = QTranslator(app)
     translated = translator.load("qtbase_zh_CN", QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath))
     app.setProperty("chinese_translation_loaded", translated)

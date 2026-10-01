@@ -3,8 +3,8 @@
 安静的本地消费记录工具：**记一笔，看这个月**。面向学生，也适合只想快速记账的人。
 无需账号，没有遥测、云同步或联网分类。账单和个性化分类学习保存在自己的电脑。
 
-当前是 **开发候选**，基于 v1.1.0 改进，未发布新版 Release，程序版本资源仍为 1.1.0。
-项目尚未授予公开开源许可证；候选包用于审查验收。
+当前版本 **1.2.0**，包含 Student edition 改进、可选用途、自定义背景和新图标；发行验证见 [状态快照](docs/STATUS.md)。
+采用 [MIT 许可证](LICENSE)，版权所有 © 2026 Lorentz-Caldfilis。允许免费使用、修改、再分发及商用，须保留版权和许可声明；第三方组件各自保留原许可。
 
 ## 开始使用
 
@@ -13,6 +13,7 @@
 旧 [v1.1.0 Release](https://github.com/Lorentz-Caldfilis/Cashing/releases/tag/v1.1.0) 不包含本分支的新改进。
 
 输入 `18.5` → Enter → `午饭` → Enter，即记下一笔。也可在空金额框粘贴 `18.5 午饭`，确认后保存。
+时间下方可选生活、工具、娱乐，再次点击取消；未选时沿用自动判断。“⋮ → 背景图片…”选择本地图片，两页共用，随时恢复默认。
 点击“看账单”，点击记录即可纠错；“自动 / 自选”说明分类来源，底部通知可撤销。
 尚未判断的类别无需处理，不影响总额；明确纠正会影响本机之后的分类。
 
@@ -52,12 +53,13 @@ Windows：
 .\.venv\Scripts\python.exe -m pytest -q -W error --basetemp work/pytest-manual
 .\.venv\Scripts\python.exe scripts/verify_release.py --phase source --label manual-source-01
 ./build.ps1
+.\.venv\Scripts\python.exe scripts/fetch_sources.py
 .\.venv\Scripts\python.exe scripts/package_release.py
 ```
 
 打包前提交源码修改；默认包名包含精确 commit 前 12 位，不沿用正式发行名。
 脚本拒绝覆盖已有目录、ZIP 或摘要，拒绝携带数据库、草稿、日志和常见私密配置。
-包内包含 `BUILD_INFO.json`、依赖清单、许可证来源、逐文件 SHA-256 和独立使用指南。
+包内包含 `LICENSE`、`BUILD_INFO.json`、依赖清单、许可证来源、Qt/PySide 对应源码归档、逐文件 SHA-256 和独立使用指南。动态库替换见 [说明](docs/LIBRARY_REPLACEMENT.md)。
 详细解压验收步骤见 [Windows 候选验证](docs/WINDOWS_CANDIDATE.md)。
 
 Linux 定向开发验证：

@@ -27,6 +27,7 @@
 - [用户可读候选摘要](CANDIDATE_SUMMARY.md)
 - [初次使用、备份恢复和卸载](USER_GUIDE.md)
 - [Windows 候选构建](WINDOWS_CANDIDATE.md)、[依赖与资源来源](THIRD_PARTY.md)
+- [动态库对应源码及替换](LIBRARY_REPLACEMENT.md)
 - [尚未执行的人工 Windows 验收表](MANUAL_ACCEPTANCE.md)
 - [资料隐私审计范围与限制](development/REPOSITORY_AUDIT.md)
 - [本轮验收矩阵与截图](development/STUDENT_VALIDATION.md)

@@ -24,7 +24,9 @@ def root(tmp_path, monkeypatch):
     (tmp_path / 'docs').mkdir()
     provenance.write_record(tmp_path / 'dist/Cashing', SHA, False, provenance.environment_snapshot())
     (tmp_path / 'docs/USER_GUIDE.md').write_text('Synthetic guide')
+    (tmp_path / 'LICENSE').write_text('Synthetic MIT fixture')
     monkeypatch.setattr(package, 'collect_notices', lambda root, target: (target / 'LICENSES').mkdir())
+    monkeypatch.setattr(package, 'collect_sources', lambda root, target: None)
     return tmp_path
 
 
@@ -33,6 +35,7 @@ def test_package_identity_and_archive_manifest(root):
     with zipfile.ZipFile(archive) as z:
         info = json.loads(z.read('Cashing/BUILD_INFO.json'))
         assert info['source_commit'] == SHA and info['candidate_only']
+        assert info['source_license'] == 'MIT' and z.read('Cashing/LICENSE') == b'Synthetic MIT fixture'
         manifest = z.read('Cashing/MANIFEST.sha256').decode().splitlines()
         listed = set()
         for line in manifest:
@@ -65,7 +68,7 @@ def test_existing_delivery_is_never_overwritten(root, suffix):
 
 
 @pytest.mark.parametrize('name', ['ledger.sqlite3', 'ledger.sqlite3-wal', 'old.db-journal',
-                                 'draft.json', 'cashing.log', '.env', '.env.local', 'secrets.json'])
+                                 'draft.json', 'appearance-background.png', 'cashing.log', '.env', '.env.local', 'secrets.json'])
 def test_runtime_private_data_is_rejected(root, name):
     (root / 'dist/Cashing' / name).write_bytes(b'synthetic private fixture')
     with pytest.raises(RuntimeError, match='data, logs'):

@@ -1,7 +1,7 @@
 # 参与开发
 
 先阅读 [产品约束](docs/PRODUCT.md)、[维护规范](docs/MAINTENANCE.md)与
-[Student edition 设计修订](docs/design/Student_Edition_Amendment.md)。项目尚未授予公开开源许可。
+[Student edition 设计修订](docs/design/Student_Edition_Amendment.md)。项目采用 MIT；提交贡献表示你有权按同一许可提供该贡献，版权仍属于各自作者。无需转让版权。
 
 1. 从明确的基线创建独立分支；保留他人未提交改动。
 2. 使用新建的 `work/` 合成数据目录，不提交账本、草稿、日志或个人失败样例。

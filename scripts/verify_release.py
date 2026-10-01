@@ -48,9 +48,10 @@ def environment():
     return env
 
 
-def run_smoke(command,directory,scale="1"):
+def run_smoke(command,directory,scale="1",clipboard_mode="system"):
     env=environment()
     env["QT_SCALE_FACTOR"]=scale
+    env["CASHING_SMOKE_CLIPBOARD_MODE"]=clipboard_mode
     directory.parent.mkdir(parents=True,exist_ok=True)
     stdout=directory.parent/(directory.name+".stdout.log")
     stderr=directory.parent/(directory.name+".stderr.log")
@@ -125,12 +126,14 @@ def main():
     parser.add_argument("--phase",choices=["source","frozen"],required=True)
     parser.add_argument("--install",type=Path)
     parser.add_argument("--label",default="release-verification")
+    parser.add_argument("--clipboard-mode",choices=["system","parser"],default="system",
+                        help="parser is limited verification for hosts without system clipboard permission")
     args=parser.parse_args()
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,79}', args.label):
         parser.error('--label must be a simple directory name')
     work=ROOT/"work"/args.label
     work.mkdir(parents=True,exist_ok=False)
-    results={"phase":args.phase,"runs":[]}
+    results={"phase":args.phase,"clipboard_mode":args.clipboard_mode,"runs":[]}
     if args.phase=="source":
         command=[str(ROOT/".venv/Scripts/python.exe"),str(ROOT/"main.py")]
     else:
@@ -143,12 +146,12 @@ def main():
         expected=verify_manifest(install)
         results["manifest_files"]=len(expected)
     for index in range(2):
-        result=run_smoke(command,work/"中文 用户 带空格"/"smoke")
+        result=run_smoke(command,work/"中文 用户 带空格"/"smoke",clipboard_mode=args.clipboard_mode)
         if index==1:
             assert "previous_process_persistence" in result["checks"]
         results["runs"].append(result)
     for scale in ("1.25","1.5","2"):
-        results["runs"].append(run_smoke(command,work/("scale-"+scale),scale))
+        results["runs"].append(run_smoke(command,work/("scale-"+scale),scale, args.clipboard_mode))
     if args.phase=="frozen":
         results["default_mode"]=default_path(Path(command[0]),work/"本地 用户 AppData")
         assert verify_manifest(install)==expected, 'Manifest changed during execution'

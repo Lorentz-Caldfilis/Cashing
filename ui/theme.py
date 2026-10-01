@@ -116,6 +116,11 @@ QPushButton#time {{
 QPushButton#time:hover {{ background: {HOVER}; color: {TEXT_2}; }}
 QPushButton#time:pressed {{ background: {PRESSED}; color: {TEXT_2}; }}
 QPushButton#time:focus {{ border-color: {FOCUS_RING}; color: {TEXT_2}; }}
+QPushButton#purpose {{ background: transparent; border: 1px solid {HAIRLINE};
+    border-radius: 8px; color: {TEXT_2}; font-size: 14px; }}
+QPushButton#purpose:hover {{ background: {HOVER}; }}
+QPushButton#purpose:checked {{ background: {ACCENT_TINT}; color: {ACCENT}; border-color: {ACCENT_SOFT}; }}
+QPushButton#purpose:focus {{ border-color: {FOCUS_RING}; }}
 QLabel#error {{ color: {DANGER}; font-size: 13px; }}
 QPlainTextEdit#errorDetail {{ color: {TEXT_3}; background: transparent; border: none; font-size: 12px; }}
 
@@ -180,4 +185,8 @@ QScrollBar::handle:vertical {{ background: #d5dae0; border-radius: 5px; min-heig
 QScrollBar::handle:vertical:hover {{ background: #c3cad2; }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: transparent; }}
+"""
+
+BACKGROUND_STYLE = """
+QWidget#space, QWidget#column, QScrollArea, QWidget#scrollBody { background: transparent; }
 """

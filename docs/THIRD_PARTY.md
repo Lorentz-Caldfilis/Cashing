@@ -1,7 +1,6 @@
 # 第三方依赖与资源来源
 
-本清单不改变 Cashing 的许可。Cashing 源码尚未授予公开开源许可；不得据此公开发行候选包。
-第三方文本仅适用于对应第三方组件，不是项目新增的源代码许可证。
+Cashing 源码自 2026-10-01 经所有者授权采用 MIT，版权署名 Lorentz-Caldfilis。第三方文本仅适用于对应组件；本项目的 MIT 不能覆盖 Qt、Python 等组件的原许可。
 
 ## 收集方式与边界
 
@@ -32,13 +31,13 @@ Qt Base 清单包括未必用于 Windows 的可选组件，不能据此推断候
 上游说明：[Qt for Python 授权资料](https://doc.qt.io/qtforpython-6/licenses.html)、
 [Qt 开源义务](https://www.qt.io/licensing/open-source-lgpl-obligations)、
 [PyInstaller 授权](https://pyinstaller.org/en/stable/license.html)。
-复制许可证不等于完成所有再分发义务。公开前仍需按实际 DLL/插件核对第三方覆盖、
-Qt 对应源代码提供方式及替换/重新链接要求、Microsoft 运行库条款，以及项目自身许可。
-当前保留完整动态库目录，不加密、签名锁定或限制用户替换 Qt 库；尚未声称完成法律合规验收。
+1.2.0 的 spec 限制到 Core/GUI/Widgets、Network/OpenGL/Test 依赖与 Windows 平台、原生样式、JPEG/GIF/ICO/WebP 图片插件，不携带 QML/Quick、PDF、SVG 和 VirtualKeyboard 插件。最终真实文件以 BUNDLED_FILES 为准。
+随包 SOURCES 直接提供 Qt Base、Qt Image Formats、Qt Translations、PySide/shiboken6 6.11.2 的精确提交源码归档，摘要保存在 `third_party/source_archives.json`；打包核对每个归档，缺失则拒绝发行。Qt Image Formats 的第三方声明随原源码归档保留，另提取所用 WebP 插件的授权文本到 LICENSES/upstream。
+动态库可替换，应用无签名或摘要锁定，不限制为修改 LGPL 库进行调试和逆向分析；构建和替换说明随包提供，见 [动态库说明](LIBRARY_REPLACEMENT.md)。Windows C 运行库来自构建 Python/PySide 的发行输入，保留原始来源及文件摘要，不把 Microsoft DLL 重新标为 MIT。上述为工程再分发措施，不声称法律认证。
 
 ## 界面资源
 
-环形图、图标和装饰由本仓库 QPainter/UI 代码绘制，没有下载插画、商标或字体。
+环形图、界面控件与装饰由本仓库 QPainter/UI 绘制。应用图标是本轮内置 imagegen 生成的原创二次元极简图像；原 PNG、运行 PNG、多尺寸 ICO 和完整提示词/工具/摘要记录在 `assets/`，转换脚本只改变分辨率及容器。未仿制既有角色或商标；AI 生成资产不宣称独占版权保障。
 中文字体由操作系统提供，不随包复制系统字体。`qtbase_zh_CN.qm` 来自相同版本 PySide6 的
 Qt translations 目录，其上游是 [qttranslations v6.11.2](https://github.com/qt/qttranslations/tree/v6.11.2)。
 开发验收截图由仓库脚本生成，仅含合成消费与合成错误内容，不含真实学生账本。

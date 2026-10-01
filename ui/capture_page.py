@@ -1,4 +1,4 @@
-"""Capture: amount, one line of description, a weak time, one action. Nothing else.
+"""Capture: amount, description, time, optional personal purpose and one action.
 
 Composition: a narrow column, centred and slightly above the middle, with a
 lot of air. No form chrome — the amount is a number, the description is a
@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QDateTimeEdit, QSizePolicy, QApplication, QScrollArea, QPlainTextEdit,
 )
 from database import DatabaseError
-from domain import parse_amount, format_amount, cents_to_input, describe_time, MAX_DESCRIPTION
+from domain import CATEGORIES, parse_amount, format_amount, cents_to_input, describe_time, MAX_DESCRIPTION
 from draft import Draft
 from quick_entry import parse_quick_entry
 from ui import motion, theme
@@ -45,7 +45,6 @@ POPOVER_FORMAT = "yyyy年M月d日 HH:mm"
 ERROR_SLOT = 20          # always reserved, so an error never moves the column
 AMOUNT_TO_TEXT = 10      # + ERROR_SLOT: the one real group break
 TEXT_TO_TIME = 2
-TIME_TO_ACTION = 36
 # The column keeps a reserved error slot under the button, so its box is taller than what
 # is on screen. These two numbers place the visible group — a little above the middle —
 # not the widget: read them together with that slot, never as the composition itself.
@@ -357,6 +356,7 @@ class CapturePage(QWidget):
         self.ledger = ledger
         self.notify = notify
         self._when = None  # None = automatic (now)
+        self.selected_category = None
         frame = QVBoxLayout(self)
         frame.setContentsMargins(0, 76, 0, 64)
         self.scroll = QScrollArea()
@@ -446,7 +446,30 @@ class CapturePage(QWidget):
         self.time_button.setToolTip("点击修改时间")
         self.time_button.clicked.connect(self.open_time_editor)
         body.addWidget(self.time_button, 0, Qt.AlignmentFlag.AlignHCenter)
-        body.addSpacing(TIME_TO_ACTION)
+        body.addSpacing(16)
+
+        purpose = QHBoxLayout()
+        purpose.setSpacing(8)
+        purpose.addStretch()
+        label = QLabel("用途")
+        label.setStyleSheet(f"color: {theme.TEXT_3}; background: transparent;")
+        purpose.addWidget(label)
+        purpose.addSpacing(4)
+        self.category_buttons = {}
+        for category in CATEGORIES:
+            button = QPushButton(category)
+            button.setObjectName("purpose")
+            button.setCheckable(True)
+            button.setFixedSize(66, 32)
+            button.setAccessibleName(f"用途：{category}")
+            button.setToolTip("可选；再次点击取消，留空自动判断")
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.clicked.connect(lambda checked, value=category: self.select_category(value))
+            self.category_buttons[category] = button
+            purpose.addWidget(button)
+        purpose.addStretch()
+        body.addLayout(purpose)
+        body.addSpacing(28)
 
         # Action ---------------------------------------------------------
         self.record_button = RecordButton("记一笔")
@@ -488,7 +511,11 @@ class CapturePage(QWidget):
 
         QWidget.setTabOrder(self.amount, self.description)
         QWidget.setTabOrder(self.description, self.time_button)
-        QWidget.setTabOrder(self.time_button, self.record_button)
+        previous_control = self.time_button
+        for button in self.category_buttons.values():
+            QWidget.setTabOrder(previous_control, button)
+            previous_control = button
+        QWidget.setTabOrder(previous_control, self.record_button)
         self.amount.returnPressed.connect(self.amount_entered)
         self.amount.textChanged.connect(self._amount_changed)
         self.amount.editingFinished.connect(self._amount_finished)
@@ -534,15 +561,25 @@ class CapturePage(QWidget):
         self.draft_changed.emit()
 
     def has_input(self) -> bool:
-        return bool(self.amount.text().strip() or self.description.text().strip())
+        return bool(self.amount.text().strip() or self.description.text().strip() or self.selected_category)
+
+    def select_category(self, category):
+        self._set_category(None if self.selected_category == category else category)
+
+    def _set_category(self, category):
+        self.selected_category = category if category in CATEGORIES else None
+        for value, button in self.category_buttons.items():
+            button.setChecked(value == self.selected_category)
+        self.draft_changed.emit()
 
     def draft(self) -> Draft:
         when = "" if self._when is None else self._when.strftime("%Y-%m-%d %H:%M")
-        return Draft(self.amount.text(), self.description.text(), when)
+        return Draft(self.amount.text(), self.description.text(), when, self.selected_category)
 
     def restore_draft(self, draft: Draft):
         self.amount.setText(draft.amount_text)
         self.description.setText(draft.description)
+        self._set_category(draft.category)
         when = draft.when_as_datetime()
         if when is None:
             self.reset_time()
@@ -632,9 +669,10 @@ class CapturePage(QWidget):
             return
         when = self.current_time()
         description = self.description.text().strip()
-        previous = (self.amount.text(), self.description.text(), self._when)
+        previous = (self.amount.text(), self.description.text(), self._when, self.selected_category)
         try:
-            stored = self.ledger.create(cents, when, description)
+            choice = {} if self.selected_category is None else {"category": self.selected_category}
+            stored = self.ledger.create(cents, when, description, **choice)
         except (ValueError, DatabaseError) as exc:
             self.save_error.setText("无法保存，这笔记录尚未写入。")
             self.save_error_detail.setPlainText(str(exc))
@@ -656,7 +694,8 @@ class CapturePage(QWidget):
             self.notify("已撤销上一笔，正在输入的内容已保留。")
             self.changed.emit()
             return
-        amount_text, description, when = previous
+        amount_text, description, when, category = previous
+        self._set_category(category)
         self.amount.setText(amount_text)
         self.description.setText(description)
         self._when = when
@@ -666,6 +705,7 @@ class CapturePage(QWidget):
         self.changed.emit()
 
     def _reset_inputs(self):
+        self._set_category(None)
         self.amount.clear()
         self.description.clear()
         self._when = None

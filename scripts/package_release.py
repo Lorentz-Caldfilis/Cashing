@@ -47,7 +47,7 @@ def check_runtime(source):
             raise RuntimeError('Runtime must not contain filesystem links')
         if (re.search(r'\.(db|db3|sqlite|sqlite3)(-|$)', name)
                 or name.endswith(('.log', '.bak', '.pem', '.key', '.pfx', '.p12'))
-                or name in {'draft.json', '.env'} or name.startswith(('.env.', 'credentials', 'secrets'))):
+                or name in {'draft.json', 'appearance-background.png', '.env'} or name.startswith(('.env.', 'credentials', 'secrets'))):
             raise RuntimeError('Runtime contains data, logs or private configuration')
 
 
@@ -113,6 +113,28 @@ def collect_notices(root, target):
     shutil.copy2(root / 'docs/THIRD_PARTY.md', target / 'THIRD_PARTY.md')
 
 
+def collect_sources(root, target):
+    """A binary delivery carries the LGPL library sources, never a network promise."""
+    inventory = root / 'third_party/source_archives.json'
+    items = json.loads(inventory.read_text('utf-8'))
+    if not items:
+        raise RuntimeError('Missing corresponding source inventory')
+    destination = target / 'SOURCES'
+    destination.mkdir()
+    names = set()
+    for item in items:
+        name = item['file']
+        if not re.fullmatch(r'[A-Za-z0-9._-]+\.tar\.gz', name) or name.casefold() in names:
+            raise RuntimeError('Unsafe source archive name')
+        names.add(name.casefold())
+        source = root / 'work/upstream-sources' / name
+        if source.is_symlink() or sha256(source) != item['sha256']:
+            raise RuntimeError('Corresponding source archive missing or changed; run scripts/fetch_sources.py')
+        shutil.copy2(source, destination / name)
+    shutil.copy2(inventory, destination / 'source_archives.json')
+    shutil.copy2(root / 'docs/LIBRARY_REPLACEMENT.md', destination / 'README.md')
+
+
 def build_package(root, name, commit):
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,99}', name):
         raise ValueError('Package name must be a single safe filename')
@@ -120,7 +142,7 @@ def build_package(root, name, commit):
         raise ValueError('A full source commit SHA is required')
     source, release = root / 'dist/Cashing', root / 'release'
     check_runtime(source)
-    for reserved in ('README.md', 'LICENSES', 'THIRD_PARTY.md', 'BUILD_INFO.json',
+    for reserved in ('README.md', 'LICENSE', 'LICENSES', 'SOURCES', 'THIRD_PARTY.md', 'BUILD_INFO.json',
                      'BUILD_ENVIRONMENT.json', 'BUILD_DEPENDENCIES.json', 'BUNDLED_FILES.json', 'MANIFEST.sha256'):
         if (source / reserved).exists():
             raise RuntimeError('Runtime contains old package outputs; rebuild first')
@@ -143,7 +165,9 @@ def build_package(root, name, commit):
             (target / 'BUILD_SOURCE.json').write_text(json.dumps(build_source, indent=2) + '\n', encoding='utf-8')
             # A standalone guide has no broken repository-relative links.
             shutil.copy2(root / 'docs/USER_GUIDE.md', target / 'README.md')
+            shutil.copy2(root / 'LICENSE', target / 'LICENSE')
             collect_notices(root, target)
+            collect_sources(root, target)
             environment = build_source['build_environment']
             (target / 'BUILD_ENVIRONMENT.json').write_text(json.dumps(environment, indent=2) + '\n', encoding='utf-8')
             (target / 'BUNDLED_FILES.json').write_text(json.dumps({
@@ -153,7 +177,7 @@ def build_package(root, name, commit):
             (target / 'BUILD_INFO.json').write_text(json.dumps({
                 'source_commit': commit, 'package': name, 'python': environment['python'],
                 'candidate_only': True,
-                'source_license': 'No public source license granted by this candidate',
+                'source_license': 'MIT', 'application_version': '1.2.0',
             }, indent=2) + '\n', encoding='utf-8')
             check_runtime(target)  # Includes collected notices and every other staged input.
             files = sorted(p for p in target.rglob('*') if p.is_file() and p.name != 'MANIFEST.sha256')

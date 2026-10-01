@@ -20,6 +20,7 @@ UI 只调用 `Ledger`，不得直接写 SQL。UI 看到的 `record.category` 可
 ## 数据安全与兼容
 
 正式数据默认在 `%LOCALAPPDATA%\Cashing\ledger.sqlite3`，草稿在同目录 `draft.json`，错误日志在 `cashing.log`。构建、安装和测试目录不得承载正式账本。测试只使用新建的 `work/` 目录；`pytest --basetemp` 不得指向用户数据。`--smoke-test` 只能操作隔离目录中的 `smoke-ledger.sqlite3`。
+可选背景是同目录 `appearance-background.png`，只复制经 Qt 解码后规范化的图片；失败保留原背景，损坏回退默认，不接触账本。它属于私人本机资料，不能提交或携带到发行包。
 
 现行 schema v3 接受并迁移 v1/v2。改变 schema 时，先列出旧版本及失败场景，保留金额、时间、说明、ID 和用户类别语义；验证现有结构与数据，先生成完整备份，在单个显式事务内修改并校验，失败回滚。对损坏或未知版本停止并报错，绝不自动重建。新增迁移应有合成旧库、失败回滚、重复打开和备份内容的测试；不读取真实账本做开发测试。
 

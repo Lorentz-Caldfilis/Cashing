@@ -1,13 +1,14 @@
 # Windows 候选构建与验收
 
 在仓库根目录使用 Windows PowerShell，安装 README 指定依赖。构建及打包前提交源码修改。
-不创建 Release、不上传到发行频道、不改版本或许可。候选 CI 使用 Windows Server 2022 x64，
+候选脚本不创建 Release、不上传到发行频道。现行版本 1.2.0，源码 MIT。候选 CI 使用 Windows Server 2022 x64，
 这与人工 Windows 10/11 设备验收不同。
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q -W error --basetemp work/pytest-candidate
 .\.venv\Scripts\python.exe scripts/verify_release.py --phase source --label candidate-source-01
 ./build.ps1
+.\.venv\Scripts\python.exe scripts/fetch_sources.py
 .\.venv\Scripts\python.exe scripts/package_release.py
 $commit = git rev-parse HEAD
 $name = "Cashing-candidate-$($commit.Substring(0,12))-windows"
@@ -33,4 +34,5 @@ JUnit、合成 GUI JSON/截图/日志及候选 ZIP/摘要，保留 14 天。失�
 
 分类固定语料报告与 Windows 证据是两类独立指标；当前平台词保持保守未知。
 人工验收还需中文 IME 组合输入、真实触控板、跨屏/DPI、物理断网、低权限用户与目标 Windows 版本。
+本机若系统剪贴板返回访问拒绝，可显式使用 `--clipboard-mode parser` 验证其余路径；该报告标记 parser，仅验证合成粘贴解析，不能声称系统剪贴板通过。默认和 CI 继续要求真实系统剪贴板。原生 GUI 测试须串行运行，不能让其他 Qt 测试抢占焦点。
 公开再分发前按 THIRD_PARTY.md 和 OPEN_SOURCE_READINESS.md 完成许可及安全审查。

@@ -1,5 +1,25 @@
 # Cashing 状态快照
 
+## 2026-10-01 1.2.0 与公开准备
+
+本轮已实现时间下方可选的生活/工具/娱乐用途，选择来源、草稿、保存失败保留及撤销一致；本地图片背景原子复制、两页共用阅读层及恢复默认；二次元极简窗口/任务栏/EXE 图标。应用及 Windows 版本资源更新为 1.2.0。分类准确性和进一步 UI/操作优化仍为持续开发项。
+
+所有者已授权本轮提交、推送和合并，以及选择开源许可证。根目录 MIT 署名 © 2026 Lorentz-Caldfilis，免费使用/修改/分发须保留版权和许可。新增贡献者保留各自版权。第三方依赖的授权、对应源码归档、摘要与动态库替换说明已准备，仓库继续保持私有。
+
+本机完整回归 **411 passed、2 skipped**；新增对应源码防篡改测试及定向 UI 回归 **18 passed**。源码五个原生 Windows GUI 流程在明确的 `parser` 模式下通过：系统剪贴板 Win32 OpenClipboard 返回 error 5（拒绝访问），该模式只验证合成粘贴解析，不能算真实系统剪贴板通过。报告 `work/v120-source-limited-01/verification.json`。GitHub CI 保持真实系统剪贴板为默认门槛。
+
+全远端 refs 可达历史模式扫描及 23 张图片复核完成；未见私钥、令牌、SQLite 数据或私人截图。构建、冻结/解压验收、远端 CI 和合并尚待执行，本段不预写完成。人工设备验收仍见 MANUAL_ACCEPTANCE.md。
+
+## 2026-10-01 本机更新（本轮修改前的历史）
+
+本地已按本人选择切换至远端开发分支 `codex/student-edition-20260930` 的 `90b18df8f4976c745db512496a2f3ce2440af8f4`。这是尚未合并的 PR #2 开发候选，应用版本资源仍为 1.1.0；main 与正式 Release 未改变。本次未提交、推送或发布。
+
+本机依赖检查通过；原生 Windows Qt 源码测试 **404 passed、2 skipped**（测试所需的文件系统链接创建不被本机允许）。源码五个 GUI 进程验收通过。候选包和 ZIP 解压副本的 434 个清单文件、ZIP CRC/摘要、隔离默认路径及重启持久化通过。冻结版独立烟测通过，但多次完整冻结 GUI 验证在启动/草稿焦点、粘贴或快捷键撤销断言处失败，原因未确定；**冻结 GUI 完整验收未通过**，不能用独立通过记录覆盖失败。
+
+使用入口为根目录 `运行Cashing.bat`（默认个人账本），测试入口为 `测试Cashing.bat`（独立的 `work/student-manual-20261001` 账本）。程序位于 `release/Cashing-candidate-90b18df8f497-windows/Cashing/Cashing.exe`。旧 v1.1.1 发行物保留。原未提交 tracked 内容保存在命名 stash，文件备份位于 `work/github-update-20261001/local-backup/`；本轮自动验证未打开正式账本。
+
+原有类别匹配及 UI/操作优化诉求仍需本人真实试用复核，新实现与合成回归不等于诉求已全部完成。本机隔离记录保留在 `work/github-update-20261001/`。以下内容保留为原分支历史证据。
+
 ## 2026-09-30 开发候选
 
 独立分支 `codex/student-edition-20260930`，main 基线 `ebd0c8b`，草稿 [PR #2](https://github.com/Lorentz-Caldfilis/Cashing/pull/2)。

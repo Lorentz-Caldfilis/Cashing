@@ -110,6 +110,9 @@ def test_tab_keeps_native_focus_order(window, qtbot):
     qtbot.keyClick(capture.description, Qt.Key.Key_Tab)
     assert capture.time_button.hasFocus()
     qtbot.keyClick(capture.time_button, Qt.Key.Key_Tab)
+    for button in capture.category_buttons.values():
+        assert button.hasFocus()
+        qtbot.keyClick(button, Qt.Key.Key_Tab)
     assert capture.record_button.hasFocus()
 
 
