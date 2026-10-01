@@ -1,10 +1,16 @@
 # Cashing 状态快照
 
-## 2026-10-01 1.2.0 背景移除更新（进行中）
+## 2026-10-01 1.2.0 背景移除更新
 
 已移除背景导入、绘制、恢复默认菜单和实现模块，恢复固定浅色界面，保留用途选择与图标；应用及 Windows 版本资源继续为 1.2.0。旧私人背景文件不读取、不改写、不自动删除，忽略规则和打包拒绝检查保留。
 
-本机隔离完整回归 **412 passed、2 skipped / 193.76s**（跳过项为主机不允许创建文件系统链接）；报告 `work/remove-background-20261001/tests.xml` 与 `tests.txt`。新增回归验证遗留损坏背景不影响启动/保存并原样保留。源码原生 GUI、冻结包、远端 CI、合并及同版本预发行更新仍待完成；先保存旧包与标签/资产元数据。以下首次交付的测试和摘要是历史证据，不代表背景移除后的发行包已验证。
+本机隔离完整回归 **412 passed、2 skipped / 193.76s**（跳过项为主机不允许创建文件系统链接）；报告 `work/remove-background-20261001/tests.xml` 与 `tests.txt`。新增回归验证遗留损坏背景不影响启动/保存并原样保留。源码、最终 EXE 和 ZIP 解压副本各五次原生 GUI 流程通过，冻结/解压各 430 个 manifest 文件、默认路径两次启动持久化和安装目录不变通过；报告 `work/remove-bg-source-01/`、`work/remove-bg-frozen-01/`、`work/remove-bg-extracted-01/`。本机为明确的 parser 剪贴板限定模式，不能算系统剪贴板通过。
+
+[Windows CI](https://github.com/Lorentz-Caldfilis/Cashing/actions/runs/36864737317) 精确 head `5c876ad58269089d4878a0f6a597dbab50f8eeda` **success**：**414 passed、0 skipped / 72.65s**；源码与解压 EXE 各五次原生 GUI，均为 system 模式，含真实剪贴板、用途、固定浅色界面、图标、重启和缩放。解压 397 个 manifest 文件核对及默认路径重启通过。原始日志与 JUnit/GUI 报告保存在 `work/remove-background-20261001/ci-36864737317.txt`、`ci-evidence/`。[PR #3](https://github.com/Lorentz-Caldfilis/Cashing/pull/3) 已合并，合并提交 `ab6984294c784a53cb4660476dddd5317013af7b`，合并树与上述真实构建源码完全一致；本机 main 已同步。
+
+本机入口仍为 `运行Cashing.bat` / `测试Cashing.bat`，均使用新版 `release/Cashing-v1.2.0-windows/Cashing/Cashing.exe`；自动验证未打开正式或既有手动试用账本。原包完整另存到 `release/previous-v1.2.0-with-background-b89610d76b1c/`，原标签/资产/说明及旧 ZIP 摘要记录在 `work/remove-background-20261001/previous-*.json`。新包仍包含 MIT、原始第三方许可、对应源码归档及构建清单。
+
+[v1.2.0 Preview](https://github.com/Lorentz-Caldfilis/Cashing/releases/tag/v1.2.0) 同名 ZIP 与摘要已更新，非 draft、prerelease；标签及真实构建来源均为上述 `5c876ad`。EXE SHA-256 `95bb73ea7b24a33641b0b97cabb42b35f59891651496983a0a03368ae9640e8d`；ZIP `fbb781063d7f3ccbfcd6c6090df81a6e8e5fb30ee3c7721ec5ff818afc461e12`，服务器 asset digest 与本机一致，远端记录 `work/remove-background-20261001/updated-release.json`。本次同版本预发行替换由所有者明确授权，使用新摘要区分；仓库仍 private，MIT 及公开准备边界保持，未声称完成代码签名或人工设备验收。以下首次交付的测试和摘要仅作历史证据。
 
 ## 2026-10-01 1.2.0 首次预发行与公开准备（背景移除前历史）
 
