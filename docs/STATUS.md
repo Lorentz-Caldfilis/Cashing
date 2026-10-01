@@ -20,7 +20,7 @@
 
 [GitHub v1.2.0 Preview](https://github.com/Lorentz-Caldfilis/Cashing/releases/tag/v1.2.0) 已上传 ZIP 与摘要，非 draft、prerelease；标签指向上述真实构建提交。EXE SHA-256 `ce371ce7ca1ce6f062c4693a5fa96b60266437a43487d9f8b3f0bd624ce0a873`；ZIP `31141c6aa46b0ff4505499feb6790f9ad8a7749711010610a87477778a256db7`，GitHub 服务器 asset digest 与本机一致。仓库仍为 **private**，默认分支 main，GitHub 已识别 MIT；所有者可直接切换公开，使当前源码与该预发行包公开可取。代码签名和人工设备体验不声称完成。
 
-最终可达历史 639 个 blob、25 个 PNG/JPEG 图片 blob 的模式复核无私钥/令牌/数据库命中，唯一 home 路径命中为审计正则；新增 PNG 是已查看的生成图标及缩放版本，ICO 来源同图。既有本机 stash、未跟踪记录、旧发行副本与个人 Hook 均保留本机。
+交付构建提交 `b89610d` 的可达历史扫描为 639 个 blob、25 个 PNG/JPEG 图片 blob，无私钥/令牌/数据库命中，唯一 home 路径命中为审计正则；新增 PNG 是已查看的生成图标及缩放版本，ICO 来源同图。既有本机 stash、未跟踪记录、旧发行副本与个人 Hook 均保留本机。
 
 ## 2026-10-01 本机更新（本轮修改前的历史）
 
