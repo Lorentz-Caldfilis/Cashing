@@ -13,4 +13,4 @@ Cashing 源码采用 MIT；PySide6/shiboken6 和本包所用 Qt 库按 LGPLv3 �
 
 构建参考：[Qt Windows 源码构建](https://doc.qt.io/qt-6/windows-building.html)、[Qt for Python 构建](https://doc.qt.io/qtforpython-6/building_from_source/index.html)。归档中的组件许可和第三方声明适用于各自文件，不能把 Cashing 的 MIT 许可用于覆盖它们。
 
-维护者的源码取回命令（仅构建时联网）：`python scripts/fetch_sources.py`。脚本按精确提交取回并核对 SHA-256；打包缺失归档或摘要不符会停止。用户自己导入的背景不会进入发行包。
+维护者的源码取回命令（仅构建时联网）：`python scripts/fetch_sources.py`。脚本按精确提交取回并核对 SHA-256；打包缺失归档或摘要不符会停止。旧版遗留的私人背景文件仍禁止进入发行包。

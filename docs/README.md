@@ -18,6 +18,7 @@
 
 ## 其余文档
 
+- [开发指南与当前构建路径](development/DEVELOPER_GUIDE.md)
 - [Student edition 开发与回退](development/STUDENT_EDITION.md)
 - [第二阶段分类、独立审查修复及界面证据](development/STUDENT_PHASE2.md)
 - [第三阶段 Windows、打包与审计证据](development/STUDENT_PHASE3.md)

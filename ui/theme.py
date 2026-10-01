@@ -186,7 +186,3 @@ QScrollBar::handle:vertical:hover {{ background: #c3cad2; }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
 QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: transparent; }}
 """
-
-BACKGROUND_STYLE = """
-QWidget#space, QWidget#column, QScrollArea, QWidget#scrollBody { background: transparent; }
-"""
