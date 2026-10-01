@@ -1,82 +1,81 @@
 # Cashing 开发指南
 
-**适用范围：** 1.2.0，更新日期 2026-10-01。运行入口、实际源码提交和验证范围见 [状态快照](../STATUS.md)。设计取舍先看 [产品约束](../PRODUCT.md)及 [Student edition 修订](../design/Student_Edition_Amendment.md)。
+适用于 **1.2.0**。开始前阅读 [产品设计原则](../PRODUCT.md)和 [维护规范](../MAINTENANCE.md)。
 
-## 代码与数据边界
+## 代码分层
 
 | 位置 | 职责 |
-|---|---|
-| `main.py`、`paths.py` | Qt 启动、版本、数据目录、隔离验收目录和启动错误 |
-| `database.py` | 唯一 SQL 入口；schema v3、行校验、事务、v1/v2 迁移、升级前备份与一致账本快照 |
-| `ledger.py` | 不依赖 Qt 的增删改查、撤销快照、月视图及读取时类别解释 |
-| `classification.py`、`classification_evidence.py`、`lexicon.py` | 本地派生分类、词汇证据、用途组合与未知片段处理；最新实现和评估见 [第四阶段记录](STUDENT_PHASE4.md)，旧算法基准见 [分类文档](CLASSIFICATION.md) |
-| `domain.py`、`draft.py` | 整数分金额与时间规则、汇总、独立的 Capture 草稿 |
-| `quick_entry.py` | 校验单笔人民币金额及说明粘贴，只解析待确认输入，不写账本 |
-| `ui/` | PySide6 的 Capture、Review、记录行、导航、主题及动效 |
-| `assets/` | 窗口/任务栏/EXE 图标与生成来源；不写 SQL |
-| `tests/`、`scripts/` | 单元/GUI 测试、原生进程验收、打包及合成分类基准 |
+| --- | --- |
+| `main.py`、`paths.py` | 启动、版本、数据目录和错误入口 |
+| `database.py` | 唯一 SQL 入口：校验、事务、schema v3、迁移与备份 |
+| `ledger.py` | 记录操作、撤销、月视图和读取时分类 |
+| `classification.py`、`classification_evidence.py`、`lexicon.py` | 本地分类、用途证据与词汇规则 |
+| `domain.py`、`draft.py`、`quick_entry.py` | 整数分金额、时间、原子草稿及单笔粘贴解析 |
+| `ui/` | PySide6 两个空间、记录行、系统主题和动效 |
+| `assets/` | 应用图标、原图及资源来源 |
+| `tests/`、`scripts/` | 回归、合成评估、进程验证与打包工具 |
+| `third_party/` | 打包必需的上游授权原文、对应源码清单及摘要 |
 
-调用方向为 `ui → Ledger → Database`；界面不能直接写 SQL。数据库仅持久化消费事实和用户明确选择的类别。`category_by_user=0` 时类别从说明文字派生；`(category=NULL, category_by_user=1)` 表示用户明确选择“暂未判断”。不能把 UI 展示的派生类别当作已存储类别写回。金额以整数分存储和汇总，时间为本地分钟精度，不隐式转换时区。
+调用方向为 `ui → Ledger → Database`。金额存整数分，时间为本地分钟精度。
+数据库仅保存事实和用户明确的类别；展示时派生的类别不得写回为个人标签。
+默认账本在 `%LOCALAPPDATA%\Cashing`，开发只能使用新建的 `work/` 隔离目录。
 
-默认正式数据目录为 `%LOCALAPPDATA%\Cashing`：`ledger.sqlite3` 是账本，`draft.json` 是未提交输入，`cashing.log` 是轮转错误日志。程序目录、构建目录与账本目录相互独立。`--data-dir` 只供隔离验证；`--smoke-test` 还要求目录为空或带专用标记，并使用 `smoke-ledger.sqlite3`。不得对真实账本执行自动测试、迁移试验或清理。
+## 安装与运行
 
-## 本地开发
-
-在仓库根目录的 PowerShell 中运行；项目已有 `.venv` 时可跳过创建步骤。
+已验证的 Windows CI 环境为 Python 3.14.7 x64；在根目录执行 PowerShell：
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-lock.txt
 .\.venv\Scripts\python.exe -m pip check
-.\.venv\Scripts\python.exe .\main.py
+$dataDir = Join-Path (Get-Location) 'work\manual-dev-unique'
+.\.venv\Scripts\python.exe main.py --data-dir $dataDir
 ```
 
-`requirements.txt` 是运行依赖；`requirements-dev.txt` 增加 pytest、pytest-qt 和 PyInstaller；`requirements-lock.txt` 记录本轮已验证的完整依赖版本。源码直接启动时默认会打开正式数据目录；开发交互应显式传入一个全新的 `work/` 下绝对路径，例如：
+`requirements.txt` 仅为运行依赖；`requirements-dev.txt` 增加开发工具；`requirements-lock.txt` 固定构建环境。
+隔离目录一旦使用就属于该开发会话，不得拿它替代日常账本。
+
+## 测试
 
 ```powershell
-$dataDir = Join-Path (Get-Location) 'work\manual-dev-01'
-.\.venv\Scripts\python.exe .\main.py --data-dir $dataDir
+.\.venv\Scripts\python.exe -m pytest -q -W error --basetemp work/pytest-dev-unique
+.\.venv\Scripts\python.exe scripts/verify_release.py --phase source --label dev-source-unique
 ```
 
-该目录一旦写入记录就属于该次开发会话，不要把它与日常账本混用。更换会话时改用新目录。
+每次使用新的 label。pytest 会清理 basetemp，必须指向专用测试目录。
+原生 GUI 验证串行运行，避免抢占焦点；报告在 `work/<label>/verification.json`。
+完整进程检查包含五次启动、缩放、重启和主题变化，不能代替人工输入法或不同设备验收。
+无显示的开发环境可用 `scripts/verify_desktop.py --platform offscreen --label unique-label`，
+但不能据此宣称 Windows 实机通过。分类修改另按 [分类设计](CLASSIFICATION.md)验证。
 
-## 修改与验证
+## Windows 打包
 
-普通修改先运行相关测试；涉及持久化、版本或发行时运行完整测试，并使用新的 `--label` 做原生 GUI 进程验证。`--basetemp` 指向 pytest 可清理的专用 `work/` 子目录，绝不指向正式数据。
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest --basetemp .\work\pytest-dev-unique -q -W error
-.\.venv\Scripts\python.exe .\scripts\verify_release.py --phase source --label dev-source-unique
-```
-
-`verify_release.py` 每阶段运行 5 个原生 Windows GUI 进程，覆盖中文空格路径、重启持久化及多个缩放比例。它的冻结版检查还验证逐文件清单、隔离默认数据路径和安装目录不变。检查报告位于 `work/<label>/verification.json`；标签目录不得复用。自动进程检查不能替代真实触控板、中文输入法或不同设备的人工验收。分类修改另按 [分类文档](CLASSIFICATION.md) 的合成基准与局限执行；数据库迁移另按 [维护规范](../MAINTENANCE.md) 验证备份、回滚和旧数据语义。
-
-## 构建与本地发行
-
-当前发行形式是 **PyInstaller onedir 便携版**，不是单文件 EXE 或安装器。日常入口是发行目录内的 `Cashing.exe`，旁边的 `_internal` 必须保留。构建前提交需要打包的 tracked 修改并关闭正在运行的 Cashing；`build.ps1` 会重建 `build/` 和 `dist/`，它们不是交付目录。
+发行形式是 PyInstaller onedir 便携版，`Cashing.exe` 与 `_internal` 必须一起保留。
+构建前提交需要打包的源码修改。构建会重建 `build/` 与 `dist/`，它们不应承载账本或交付副本。
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
-.\.venv\Scripts\python.exe .\scripts\fetch_sources.py
-.\.venv\Scripts\python.exe .\scripts\package_release.py
+./build.ps1
+.\.venv\Scripts\python.exe scripts/fetch_sources.py
+.\.venv\Scripts\python.exe scripts/package_release.py
 $commit = (git rev-parse HEAD).Trim()
-$packageName = "Cashing-candidate-$($commit.Substring(0,12))-windows"
-.\.venv\Scripts\python.exe .\scripts\verify_release.py --phase frozen --install "release/$packageName/Cashing" --label dev-frozen-unique
-Get-FileHash "release/$packageName.zip" -Algorithm SHA256
+$name = "Cashing-candidate-$($commit.Substring(0,12))-windows"
+Expand-Archive -LiteralPath "release/$name.zip" -DestinationPath "work/extracted-$name"
+.\.venv\Scripts\python.exe scripts/verify_release.py --phase frozen --install "work/extracted-$name/Cashing" --label dev-extracted-unique
+Get-FileHash "release/$name.zip" -Algorithm SHA256
 ```
 
-`package_release.py` 默认按精确提交命名候选，要求 tracked 文件干净且构建来源一致，拒绝覆盖同名产物。后续提交对应的目录名应根据新提交更新。正式版本变更仍需同步应用与 Windows 版本资源、README 和发行资料；通常不要替换同名已交付包。本次所有者明确授权保持 1.2.0 更新预发行：先保存原标签/资产元数据，另存旧交付目录和 ZIP，再重新生成同名包；完成源码、EXE、解压包验证及远端 CI 后，才更新对应源码标签、远端资产与摘要。候选流程见 [Windows 候选构建](../WINDOWS_CANDIDATE.md)。保留源码、发行目录、ZIP 解压副本的独立结果，并记录摘要与失败。Git 忽略 `release/`、`build/`、`dist/` 和 `work/`。
+打包要求 tracked 文件干净、构建来源与运行文件一致，拒绝覆盖已有目录/ZIP/摘要及携带私人资料。
+包中必须保留应用许可、第三方原文、对应源码和替换说明，详见 [第三方依赖](../THIRD_PARTY.md)。
+PR 的 Windows CI 在精确 head commit 上测试、构建、验证解压包，保留 artifact 14 天，不自动创建 Release。
+进一步的进程/清单检查见 [Windows 构建验证](../WINDOWS_CANDIDATE.md)。
 
-本地构建不等于 GitHub 发布。推送、标签、Release 页面与服务器资产摘要须在实际操作并核对后记录；当前开发候选与正式 Release 的区别见 [状态快照](../STATUS.md)。
+## 维护约束
 
-## 当前边界
-
-- Capture 新增可选用途：不选时自动判断，明确选择写入个人标签。草稿、撤销和下一笔保护均包含用途，不更改数据库 schema。
-- `ui/theme.py` 在启动时通过 `QStyleHints.colorScheme()` 选择浅色/深色，监听方案和调色板通知，合并到下一个事件循环更新 Qt 调色板及应用 QSS。`theme.set_style` 保留局部控件的语义模板；图标和环形图在绘制时取当前 token，不缓存旧颜色。不重建 Capture/Review 或查询账本，切换保留输入、编辑、草稿和撤销。原生文件对话框的外观由系统负责；不覆盖系统设置，也不提供手动主题入口。
-  [Qt 6.11 官方说明](https://doc.qt.io/qt-6.11/qstylehints.html#colorScheme-prop)指出方案信号发出时旧调色板仍生效，因此需要合并通知再同步。`verify_release.py` 的五次进程覆盖 system/light/dark 启动及运行中切换；方案覆盖仅在隔离 `--smoke-test` 生效，无显示平台单测使用合成通知，真实 Windows 设置操作按人工验收表另测。
-- 主窗口仍使用 `QWidget#space`。背景导入、绘制与菜单入口已移除；旧 `appearance-background.png` 不读取、不改写、不自动删除，仍由 Git 忽略及打包私人文件检查排除。
-- EXE 使用多尺寸 ICO，运行图标通过 `__file__` 相对 assets 取得；PyInstaller spec 只带运行资源，不带生成原图/提示词。包内 MIT、第三方授权与对应源码归档缺一不可。
-
-- schema v3 可迁移 v1/v2；迁移前的完整副本是 `ledger.sqlite3.before-v3.bak`。无法识别或损坏的账本应停止并报告，不得自动清空重建。
-- 当前有菜单触发的本地一致账本备份，没有定时备份、云同步或账本加密。手工复制正式数据库前应退出程序；恢复前先另存现有文件，具体步骤见使用指南。
-- Windows 10、未装 Python 的干净机器、真实中文输入法、触控板方向、跨显示器和长期大账本仍缺少本轮人工验收。不要把合成分类精度或自动 GUI 结果写成真实长期使用效果。
+- 草稿和账本是不同文件，不保证跨文件的断电事务。只有数据库写入成功才清空输入。
+- schema v3 接受 v1/v2，迁移前备份；无效或未知账本应停止，不自动重建。
+- `ui/theme.py` 合并系统方案/调色板通知，更新应用与局部样式；图标和图表绘制时取当前 token。
+  切换不重建页面、不查询账本，保留输入、编辑、选区和撤销。主题覆盖只用于隔离烟测。
+- 图片背景已移除，旧私人图片不读取、不改写、不自动删除；忽略及打包拒绝检查仍保留。
+- 普通源码/测试/构建工具是可维护软件的一部分。阶段报告、原始测试输出和历史截图放在本机 `work/` 或 CI，
+  当前文档只记录长期约束、操作路径和当前发行身份；旧资料在 Git 历史中可追溯。
+- 不自动提交、推送、更新标签或发布；需要所有者明确授权。仓库整理不改 1.2.0 二进制或其源码标签。
