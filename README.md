@@ -8,7 +8,7 @@
 
 ## 开始使用
 
-有维护者提供的 Windows 候选 ZIP 时，完整解压后双击 `Cashing/Cashing.exe`，保留整个文件夹。
+从 [1.2.0 预发行](https://github.com/Lorentz-Caldfilis/Cashing/releases/tag/v1.2.0)取得 Windows ZIP，完整解压后双击 `Cashing/Cashing.exe`，保留整个文件夹。仓库私有期间需要访问权限；源码也可按下文自行构建。
 无需安装 Python。候选未数字签名，请核对可信来源和 SHA-256，不要关闭系统安全功能。
 旧 v1.0.0 / v1.1.0 二进制已归档为私有草稿；请使用 1.2.0 或从当前 main 构建。
 

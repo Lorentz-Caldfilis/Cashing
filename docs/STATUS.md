@@ -14,7 +14,13 @@
 
 **本机冻结证据：** 提交 `86742a3` PyInstaller 构建成功，EXE 版本/版权资源核对通过。候选 ZIP `585924d0f158559bf71e1bcc0341ca4c0ace21618a4e13b84b401ffc9897e3c1`，430 个 manifest 文件。原候选目录与 ZIP 解压副本均通过五次 parser 模式流程、默认路径两次启动及安装目录不变检查（`work/v120-frozen-limited-02/`、`work/v120-extracted-limited-01/`）。第一次原目录验收在返回 Capture 的焦点断言失败，第二次串行重验通过；失败记录保留，不能声称全部尝试无失败。本机系统剪贴板仍没有通过，完整该项证据来自上述 Windows CI。
 
-**公开前旧资产：** v1.0.0/v1.1.0 ZIP 和页面元数据已在隔离目录备份，摘要/CRC 通过，未发现账本/草稿/日志；旧包存在未使用 VirtualKeyboard 插件且许可交付不完整，因此转为私有 draft，保留原资产与标签，公开后不作为公众发行。旧 CI 二进制候选已按名单清除，保留测试证据和本轮含对应源码的候选。最终 1.2.0 交付名称及发布记录在制作后补入，不把历史包重命名冒充新版本。
+**公开前旧资产：** v1.0.0/v1.1.0 ZIP 和页面元数据已在隔离目录备份，摘要/CRC 通过，未发现账本/草稿/日志；旧包存在未使用 VirtualKeyboard 插件且许可交付不完整，因此转为私有 draft，保留原资产与标签，公开后不作为公众发行。9 个旧 CI 二进制候选已按名单清除，保留测试证据和本轮含对应源码的候选，不把历史包重命名冒充新版本。
+
+**最终交付与公开：** 从 main 的 `b89610d76b1c7d685a7deb5a81ad0781d86ebd57` 构建 `release/Cashing-v1.2.0-windows/Cashing/Cashing.exe` 及完整 ZIP，包含 MIT、第三方原始授权、四份对应源码归档、依赖/构建身份及 430 个 manifest 文件。最终原目录和解压目录各五次 parser GUI、默认路径两次启动及安装完整性通过，报告 `work/v120-delivery-frozen-01/`、`work/v120-delivery-extracted-01/`。根目录本地运行/测试入口均已改用 1.2.0，未打开正式账本。
+
+[GitHub v1.2.0 Preview](https://github.com/Lorentz-Caldfilis/Cashing/releases/tag/v1.2.0) 已上传 ZIP 与摘要，非 draft、prerelease；标签指向上述真实构建提交。EXE SHA-256 `ce371ce7ca1ce6f062c4693a5fa96b60266437a43487d9f8b3f0bd624ce0a873`；ZIP `31141c6aa46b0ff4505499feb6790f9ad8a7749711010610a87477778a256db7`，GitHub 服务器 asset digest 与本机一致。仓库仍为 **private**，默认分支 main，GitHub 已识别 MIT；所有者可直接切换公开，使当前源码与该预发行包公开可取。代码签名和人工设备体验不声称完成。
+
+最终可达历史 639 个 blob、25 个 PNG/JPEG 图片 blob 的模式复核无私钥/令牌/数据库命中，唯一 home 路径命中为审计正则；新增 PNG 是已查看的生成图标及缩放版本，ICO 来源同图。既有本机 stash、未跟踪记录、旧发行副本与个人 Hook 均保留本机。
 
 ## 2026-10-01 本机更新（本轮修改前的历史）
 
