@@ -2,11 +2,8 @@ from datetime import datetime
 import json
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QImage
 from database import DatabaseError
 from draft import Draft, DraftStore
-from ledger import Ledger
-from ui.background import BackgroundStore, read_image
 from ui.main_window import MainWindow
 
 
@@ -68,52 +65,29 @@ def test_category_only_draft_and_legacy(tmp_path):
     assert store.load() == Draft("12")
 
 
-def test_background_copy_restart_reset_and_bad_replacement(tmp_path):
-    source = tmp_path / "source.png"
-    image = QImage(40, 30, QImage.Format.Format_ARGB32)
-    image.fill(QColor("#243f78"))
-    assert image.save(str(source))
-    store = BackgroundStore(tmp_path / "data")
-    store.import_image(source)
-    original = store.path.read_bytes()
-    source.unlink()
-    assert BackgroundStore(store.path.parent).load().pixelColor(0, 0) == QColor("#243f78")
-    invalid = tmp_path / "invalid.png"
-    invalid.write_bytes(b"invalid")
-    with pytest.raises(ValueError):
-        store.import_image(invalid)
-    assert store.path.read_bytes() == original
-    store.reset()
-    assert store.load().isNull()
-    store.path.write_bytes(b"corrupt stored file")
-    assert store.load().isNull()
+def test_legacy_background_is_ignored_and_preserved(database, tmp_path, qtbot):
+    legacy = tmp_path / "appearance-background.png"
+    original = b"synthetic legacy file; deliberately not a valid image"
+    legacy.write_bytes(original)
+    window = MainWindow(database, tmp_path)
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+    assert window.centralWidget().objectName() == "space"
+    assert [a.text() for a in window.utility_menu.actions() if not a.isSeparator()] == [
+        "打开数据目录", "备份账本…", "关于 Cashing"]
+    window.capture.amount.setText("12")
+    window.capture.select_category("生活")
+    window.capture.record()
+    window.close()
+    assert legacy.read_bytes() == original
+    record = database.get_records_by_month(datetime.now().year, datetime.now().month)[0]
+    assert record["amount_cents"] == 1200 and record["category"] == "生活"
 
 
-def test_image_size_limit_and_menu_cancel(window, tmp_path, monkeypatch):
-    from ui import background
-    from PySide6.QtWidgets import QFileDialog
-    source = tmp_path / "large.png"
-    image = QImage(20, 20, QImage.Format.Format_RGB32)
-    image.fill(QColor("black"))
-    image.save(str(source))
-    monkeypatch.setattr(background, "MAX_PIXELS", 100)
-    with pytest.raises(ValueError, match="像素"):
-        read_image(source)
-    monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *a: ("", ""))
-    window.choose_background()
-    assert window.centralWidget().image.isNull()
-    assert not window.background_store.path.exists()
-
-
-def test_reading_surface_and_icon_and_small_window(window, qtbot):
-    image = QImage(60, 40, QImage.Format.Format_RGB32)
-    image.fill(QColor("black"))
-    window._apply_background(image)
+def test_icon_and_small_window(window, qtbot):
     window.resize(640, 440)
     qtbot.wait(80)
-    canvas = window.centralWidget()
-    pixel = canvas.grab().toImage().pixelColor(canvas.width() // 2, 105)
-    assert min(pixel.red(), pixel.green(), pixel.blue()) >= 220
     assert not window.windowIcon().isNull()
     for button in window.capture.category_buttons.values():
         window.capture.scroll.ensureWidgetVisible(button)

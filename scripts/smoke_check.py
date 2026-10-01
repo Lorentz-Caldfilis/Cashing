@@ -118,7 +118,7 @@ def schedule_smoke_check(app, window, database, directory):
             check(DraftStore(directory).load() == capture.draft(), "draft_saved_before_close")
             capture._reset_inputs()
 
-            # Optional purpose, raw origin, undo, and actual background persistence.
+            # Optional purpose, raw origin, undo, and the fixed light appearance.
             capture.amount.setText("9")
             capture.description.setText("合成用途选择")
             capture.select_category("娱乐")
@@ -129,17 +129,9 @@ def schedule_smoke_check(app, window, database, directory):
             window.toast._run_undo()
             check(capture.selected_category == "娱乐", "undo_restores_capture_category")
             capture._reset_inputs()
-            from PySide6.QtGui import QImage, QColor
-            image = QImage(80, 60, QImage.Format.Format_RGB32)
-            image.fill(QColor("#456784"))
-            image_path = directory / "synthetic-background.png"
-            check(image.save(str(image_path)), "synthetic_background_created")
-            window._apply_background(window.background_store.import_image(image_path))
-            check(not window.background_store.load().isNull(), "local_background_persists")
-            check(window.grab().save(str(directory / "01-background.png")), "background_screenshot")
-            window.reset_background()
-            check(window.centralWidget().image.isNull() and not window.background_store.path.exists(),
-                  "background_reset_preserves_ledger")
+            check(window.centralWidget().objectName() == "space", "fixed_light_surface")
+            check([a.text() for a in window.utility_menu.actions() if not a.isSeparator()]
+                  == ["打开数据目录", "备份账本…", "关于 Cashing"], "utility_menu_without_background")
             check(not window.windowIcon().isNull(), "application_icon_loaded")
 
             # Capture: local error, then three records through the Enter path.

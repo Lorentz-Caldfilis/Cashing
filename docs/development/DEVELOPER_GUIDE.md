@@ -13,7 +13,7 @@
 | `domain.py`、`draft.py` | 整数分金额与时间规则、汇总、独立的 Capture 草稿 |
 | `quick_entry.py` | 校验单笔人民币金额及说明粘贴，只解析待确认输入，不写账本 |
 | `ui/` | PySide6 的 Capture、Review、记录行、导航、主题及动效 |
-| `ui/background.py`、`assets/` | 本地背景原子复制、两页共用阅读层及窗口/EXE 图标；不写 SQL |
+| `assets/` | 窗口/任务栏/EXE 图标与生成来源；不写 SQL |
 | `tests/`、`scripts/` | 单元/GUI 测试、原生进程验收、打包及合成分类基准 |
 
 调用方向为 `ui → Ledger → Database`；界面不能直接写 SQL。数据库仅持久化消费事实和用户明确选择的类别。`category_by_user=0` 时类别从说明文字派生；`(category=NULL, category_by_user=1)` 表示用户明确选择“暂未判断”。不能把 UI 展示的派生类别当作已存储类别写回。金额以整数分存储和汇总，时间为本地分钟精度，不隐式转换时区。
@@ -53,24 +53,26 @@ $dataDir = Join-Path (Get-Location) 'work\manual-dev-01'
 
 ## 构建与本地发行
 
-当前发行形式是 **PyInstaller onedir 便携版**，不是单文件 EXE 或安装器。日常入口是发行目录内的 `Cashing.exe`，旁边的 `_internal` 必须保留。构建前关闭正在运行的 Cashing；`build.ps1` 会重建 `build/` 和 `dist/`，它们不是交付目录。
+当前发行形式是 **PyInstaller onedir 便携版**，不是单文件 EXE 或安装器。日常入口是发行目录内的 `Cashing.exe`，旁边的 `_internal` 必须保留。构建前提交需要打包的 tracked 修改并关闭正在运行的 Cashing；`build.ps1` 会重建 `build/` 和 `dist/`，它们不是交付目录。
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\build.ps1
 .\.venv\Scripts\python.exe .\scripts\fetch_sources.py
 .\.venv\Scripts\python.exe .\scripts\package_release.py
-.\.venv\Scripts\python.exe .\scripts\verify_release.py --phase frozen --install .\release\Cashing-candidate-90b18df8f497-windows\Cashing --label dev-frozen-unique
-Get-FileHash .\release\Cashing-candidate-90b18df8f497-windows.zip -Algorithm SHA256
+$commit = (git rev-parse HEAD).Trim()
+$packageName = "Cashing-candidate-$($commit.Substring(0,12))-windows"
+.\.venv\Scripts\python.exe .\scripts\verify_release.py --phase frozen --install "release/$packageName/Cashing" --label dev-frozen-unique
+Get-FileHash "release/$packageName.zip" -Algorithm SHA256
 ```
 
-`package_release.py` 默认按精确提交命名候选，要求 tracked 文件干净且构建来源一致，拒绝覆盖同名产物。后续提交对应的目录名应根据新提交更新。正式版本变更仍需同步应用与 Windows 版本资源、README 和发行资料；不要替换同名已交付包。候选流程见 [Windows 候选构建](../WINDOWS_CANDIDATE.md)。保留源码、发行目录、ZIP 解压副本的独立结果，并记录摘要与失败。Git 忽略 `release/`、`build/`、`dist/` 和 `work/`。
+`package_release.py` 默认按精确提交命名候选，要求 tracked 文件干净且构建来源一致，拒绝覆盖同名产物。后续提交对应的目录名应根据新提交更新。正式版本变更仍需同步应用与 Windows 版本资源、README 和发行资料；通常不要替换同名已交付包。本次所有者明确授权保持 1.2.0 更新预发行：先保存旧包和标签/资产元数据，通过新候选验证后另存旧交付目录，再重新生成同名包、更新对应源码标签和远端摘要。候选流程见 [Windows 候选构建](../WINDOWS_CANDIDATE.md)。保留源码、发行目录、ZIP 解压副本的独立结果，并记录摘要与失败。Git 忽略 `release/`、`build/`、`dist/` 和 `work/`。
 
 本地构建不等于 GitHub 发布。推送、标签、Release 页面与服务器资产摘要须在实际操作并核对后记录；当前开发候选与正式 Release 的区别见 [状态快照](../STATUS.md)。
 
 ## 当前边界
 
 - Capture 新增可选用途：不选时自动判断，明确选择写入个人标签。草稿、撤销和下一笔保护均包含用途，不更改数据库 schema。
-- 背景规范化为数据目录 `appearance-background.png`，QSaveFile 原子替换，导入失败保留旧图，读取失败使用默认。图片不随账本备份；`BackgroundCanvas` 负责裁切与阅读层，页面本身不复制背景。
+- 主窗口使用 `QWidget#space` 与固定浅色主题。背景导入、绘制与菜单入口已移除；旧 `appearance-background.png` 不读取、不改写、不自动删除，仍由 Git 忽略及打包私人文件检查排除。
 - EXE 使用多尺寸 ICO，运行图标通过 `__file__` 相对 assets 取得；PyInstaller spec 只带运行资源，不带生成原图/提示词。包内 MIT、第三方授权与对应源码归档缺一不可。
 
 - schema v3 可迁移 v1/v2；迁移前的完整副本是 `ledger.sqlite3.before-v3.bak`。无法识别或损坏的账本应停止并报告，不得自动清空重建。

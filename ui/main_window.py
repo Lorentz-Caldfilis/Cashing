@@ -2,14 +2,13 @@
 from pathlib import Path
 from datetime import datetime
 from PySide6.QtCore import QPoint, QUrl, QTimer, Qt
-from PySide6.QtGui import QShortcut, QKeySequence, QDesktopServices, QIcon, QImage
-from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QToolButton, QMenu, QMessageBox, QFileDialog, QLabel, QScrollArea
+from PySide6.QtGui import QShortcut, QKeySequence, QDesktopServices, QIcon
+from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QToolButton, QMenu, QMessageBox, QFileDialog, QLabel
 from draft import DraftStore
 from database import DatabaseError
 from ledger import Ledger
 from ui import theme
 from ui.capture_page import CapturePage
-from ui.background import BackgroundStore, BackgroundCanvas
 from ui.controls import MoreButton
 from ui.review_page import ReviewPage, HEADER_LINE
 from ui.spaces import (
@@ -49,7 +48,8 @@ class MainWindow(QMainWindow):
         QApplication.instance().setFont(theme.font(theme.BASE_PX))
         self.setStyleSheet(theme.STYLE)
 
-        central = BackgroundCanvas()
+        central = QWidget()
+        central.setObjectName("space")
         layout = QVBoxLayout(central)
         layout.setContentsMargins(0, 0, 0, 0)
         self.spaces = SpaceSwitcher()
@@ -87,18 +87,11 @@ class MainWindow(QMainWindow):
         self.backup_action = self.utility_menu.addAction("备份账本…")
         self.backup_action.triggered.connect(self.backup_ledger)
         self.utility_menu.addSeparator()
-        self.background_action = self.utility_menu.addAction("背景图片…")
-        self.background_action.triggered.connect(self.choose_background)
-        self.reset_background_action = self.utility_menu.addAction("恢复默认背景")
-        self.reset_background_action.triggered.connect(self.reset_background)
-        self.utility_menu.addSeparator()
         self.about_action = self.utility_menu.addAction("关于 Cashing")
         self.about_action.triggered.connect(self.show_about)
         self.utility.setMenu(self.utility_menu)
         self.data_directory = Path(data_directory) if data_directory else None
         self.database_path = database.path
-        self.background_store = BackgroundStore(self.data_directory or self.database_path.parent)
-        self._apply_background(self.background_store.load())
 
         self.capture.changed.connect(self._capture_changed)
         QShortcut(QKeySequence("Alt+Right"), self, activated=lambda: self.switch_to(REVIEW))
@@ -169,36 +162,6 @@ class MainWindow(QMainWindow):
         self.toast.show_message(text, undo, danger=danger)
 
     # ---- utility (low-frequency, never a third space) ---------------------
-    def _apply_background(self, image):
-        self.centralWidget().set_image(image)
-        active = not image.isNull()
-        self.setStyleSheet(theme.STYLE + (theme.BACKGROUND_STYLE if active else ""))
-        for scroll in self.findChildren(QScrollArea):
-            scroll.viewport().setAutoFillBackground(not active)
-        self.reset_background_action.setEnabled(active or self.background_store.path.exists())
-
-    def choose_background(self):
-        filename, _ = QFileDialog.getOpenFileName(
-            self, "选择背景图片", "", "图片 (*.png *.jpg *.jpeg *.webp *.bmp)")
-        if not filename:
-            return
-        try:
-            image = self.background_store.import_image(filename)
-        except (OSError, ValueError) as exc:
-            self.notify(str(exc), danger=True)
-            return
-        self._apply_background(image)
-        self.notify("背景已更新，仅保存在本机。")
-
-    def reset_background(self):
-        try:
-            self.background_store.reset()
-        except OSError:
-            self.notify("无法移除背景，请检查数据目录权限。", danger=True)
-            return
-        self._apply_background(QImage())
-        self.notify("已恢复默认背景。")
-
     def open_data_directory(self):
         target = self.data_directory or self.database_path.parent
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(target)))
