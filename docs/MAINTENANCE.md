@@ -40,8 +40,8 @@ UI 只调用 `Ledger`，不得直接写 SQL。UI 看到的 `record.category` 可
 .\.venv\Scripts\python.exe .\scripts\verify_release.py --phase source --label unique-source-label
 ```
 
-每次运行 `verify_release.py` 使用新的 `--label`；详见根目录 README。发布时记录源码提交、依赖锁文件、测试命令与结果、发行文件摘要、GitHub tag 和 Release asset 的摘要。旧版本审计留作历史证据，不能覆盖成新版本的验收结论。没有实测的平台和设备须明确列出。
+每次运行 `verify_release.py` 使用新的 `--label`；详见开发指南。发布时记录源码提交、依赖锁文件、测试命令与结果、发行文件摘要、GitHub tag 和 Release asset 的摘要。旧版本审计留在本机归档与 Git 历史，不能覆盖成新版本的验收结论。没有实测的平台和设备须明确列出。
 
 ## 文档更新约定
 
-长期原则修改时更新原始 `docs/design/` 规范及本摘要，并解释为什么原判断不再成立。实现或数据行为改变时同步 README、`PRODUCT.md` 或本文中的对应描述；每次发布更新 `STATUS.md` 的日期、提交、远端证据和未验收项。`docs/development/IMPLEMENTATION_STATUS.md` 保留为历史记录，新增进展不再附在其旧“当前阶段”之后。
+长期原则修改时更新现行 `PRODUCT.md` 及本文，并解释为什么原判断不再成立。实现或数据行为改变时同步 README、使用指南或本文中的对应描述；每次发布更新 `STATUS.md` 的构建身份、验证来源和未验收项。原设计规范、`IMPLEMENTATION_STATUS.md`、阶段报告与旧发行审计已归档，Git 历史保留原件；不在历史记录里追加新结论。阶段日志、原始测试输出、故障诊断和验收表保存在本机 `work/` 或 CI artifact，当前仓库只维护使用、构建和长期约束。

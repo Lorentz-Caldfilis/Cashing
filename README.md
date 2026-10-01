@@ -1,89 +1,66 @@
-# Cashing · PC Student edition
+<p align="center">
+  <img src="assets/cashing-icon.png" width="88" alt="Cashing 图标">
+</p>
 
-安静的本地消费记录工具：**记一笔，看这个月**。面向学生，也适合只想快速记账的人。
-无需账号，没有遥测、云同步或联网分类。账单和个性化分类学习保存在自己的电脑。
+# Cashing
 
-当前版本 **1.2.0**，包含 Student edition 改进、可选用途和新图标，浅色/深色随系统变化；发行验证见 [状态快照](docs/STATUS.md)。
-采用 [MIT 许可证](LICENSE)，版权所有 © 2026 Lorentz-Caldfilis。允许免费使用、修改、再分发及商用，须保留版权和许可声明；第三方组件各自保留原许可。
+**记一笔，看这个月。**
+
+Cashing 是一款简洁的 Windows 本地记账软件，适合记录午饭、打印、订阅和日常开销。
+无需注册，账单保存在自己的电脑；没有广告、遥测或云端分类。
+
+**[下载 1.2.0 Windows 便携版](https://github.com/Lorentz-Caldfilis/Cashing/releases/tag/v1.2.0)** · [使用指南](docs/USER_GUIDE.md) · [反馈问题](https://github.com/Lorentz-Caldfilis/Cashing/issues)
+
+## 功能
+
+- **快速记账**：金额、说明、回车保存，也支持粘贴 `18.5 午饭`。
+- **简单分类**：生活、工具、娱乐可直接选择；未选时本地判断，支持纠正与个人习惯学习。
+- **查看消费**：按月汇总、类别占比、按天明细和历史搜索。
+- **放心修改**：记录可编辑、删除和撤销，未完成输入会保存为草稿。
+- **本地备份**：从菜单备份账本，数据与程序目录分开。
+- **跟随系统**：浅色与深色随系统设置变化。
+
+| 记一笔 | 看账单 |
+| --- | --- |
+| ![Cashing 录入界面](docs/images/capture.png) | ![Cashing 月账单界面](docs/images/review.png) |
+
+截图使用演示数据。界面颜色跟随系统设置。
 
 ## 开始使用
 
-从 [1.2.0 预发行](https://github.com/Lorentz-Caldfilis/Cashing/releases/tag/v1.2.0)取得 Windows ZIP，完整解压后双击 `Cashing/Cashing.exe`，保留整个文件夹。仓库私有期间需要访问权限；源码也可按下文自行构建。
-无需安装 Python。候选未数字签名，请核对可信来源和 SHA-256，不要关闭系统安全功能。
-旧 v1.0.0 / v1.1.0 二进制已归档为私有草稿；请使用 1.2.0 或从当前 main 构建。
+1. 打开 [1.2.0 下载页面](https://github.com/Lorentz-Caldfilis/Cashing/releases/tag/v1.2.0)，下载 `Cashing-v1.2.0-windows.zip`。
+2. 完整解压 ZIP，双击其中的 `Cashing/Cashing.exe`。保留整个文件夹及 `_internal`，无需安装 Python。
+3. 输入金额，按 Enter，填写说明，再按 Enter 保存。说明可留空，用途也不必选择。
 
-输入 `18.5` → Enter → `午饭` → Enter，即记下一笔。也可在空金额框粘贴 `18.5 午饭`，确认后保存。
-时间下方可选生活、工具、娱乐，再次点击取消；未选时沿用自动判断。
-点击“看账单”，点击记录即可纠错；“自动 / 自选”说明分类来源，底部通知可撤销。
-尚未判断的类别无需处理，不影响总额；明确纠正会影响本机之后的分类。
+点击底部“看账单”回看消费，点击记录修改；右上角菜单提供数据目录、备份和关于。
+更新前先备份并关闭程序，再将新版解压到新的文件夹。
 
-完整的[使用指南](docs/USER_GUIDE.md)包括第一次记账、纠错学习、键盘操作、备份恢复和卸载。
-Windows 默认数据在 `%LOCALAPPDATA%\Cashing`，也可从“⋮ → 打开数据目录”查看。
-备份未加密；软件没有定时备份。不要提交或上传个人账本、草稿和日志。
+Windows 数据默认保存在 `%LOCALAPPDATA%\Cashing`，替换程序不会删除账单。
+账本和备份未加密；请自行定期备份。完整操作、快捷键及恢复步骤见 [使用指南](docs/USER_GUIDE.md)。
+
+## 使用范围
+
+当前提供 **1.2.0 预发行版，Windows x64**。程序尚未数字签名，下载页面附有 SHA-256 校验文件。
+只记录人民币消费，暂不支持收入、预算、多账户、云同步或账单导入导出。
+自动分类可能无法判断用途，也可能判断错误；可以手动纠正，不影响消费总额。
+分类准确性和界面操作仍在持续改进。
 
 ## 从源码运行
 
-在仓库根目录执行。运行只需 `requirements.txt`；开发与构建使用锁定的完整依赖。
-安装依赖需要联网，安装完成后的业务功能不需要联网。
-
-Windows PowerShell（CI 使用 Python 3.14.7 x64）：
+使用 Python 3.14 x64，在仓库根目录执行以下 PowerShell 命令：
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements-lock.txt
-.\.venv\Scripts\python.exe -m pip check
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe main.py
 ```
 
-Linux 仅作开发验证，使用新的合成数据目录：
+安装依赖需要联网，日常记账不需要联网。开发、测试和 Windows 打包见 [开发指南](docs/development/DEVELOPER_GUIDE.md)。
 
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-dev.txt
-.venv/bin/python main.py --data-dir "$PWD/work/my-synthetic-ledger"
-```
+## 参与与许可
 
-不需要激活虚拟环境。`--data-dir` 只影响本次运行，不要把测试目录当日常账本。
+欢迎提交问题、建议或 Pull Request；请用虚构的消费例子复现问题，保护自己的账本和日志。
+开始修改前请阅读 [贡献指南](CONTRIBUTING.md)与 [产品设计原则](docs/PRODUCT.md)。安全问题请按 [安全说明](SECURITY.md)私密报告。
 
-## 测试与构建
-
-Windows：
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q -W error --basetemp work/pytest-manual
-.\.venv\Scripts\python.exe scripts/verify_release.py --phase source --label manual-source-01
-./build.ps1
-.\.venv\Scripts\python.exe scripts/fetch_sources.py
-.\.venv\Scripts\python.exe scripts/package_release.py
-```
-
-打包前提交源码修改；默认包名包含精确 commit 前 12 位，不沿用正式发行名。
-脚本拒绝覆盖已有目录、ZIP 或摘要，拒绝携带数据库、草稿、日志和常见私密配置。
-包内包含 `LICENSE`、`BUILD_INFO.json`、依赖清单、许可证来源、Qt/PySide 对应源码归档、逐文件 SHA-256 和独立使用指南。动态库替换见 [说明](docs/LIBRARY_REPLACEMENT.md)。
-详细解压验收步骤见 [Windows 候选验证](docs/WINDOWS_CANDIDATE.md)。
-
-Linux 定向开发验证：
-
-```bash
-.venv/bin/python -m pytest -q -W error --basetemp work/pytest-manual
-.venv/bin/python scripts/verify_desktop.py --platform offscreen --label manual-linux-01
-```
-
-`--basetemp` 会被 pytest 清理，只能指向专用测试目录。验收脚本每次使用新的 label。
-Windows CI 在 PR 的精确 head commit 上测试、构建并验证解压包，产物保存 14 天，不创建 Release。
-源码测试、实际 GUI 进程、冻结包和人工设备验收分开报告，不能互相替代。
-
-## 当前限制与证据
-
-只支持人民币消费和生活/工具/娱乐三类，可暂未判断；没有收入、预算、账户或报表导出。
-分类是保守的本地短语规则，合成数据表现不等于真实长期使用效果。
-平台词安全回退后的固定学生语料：DEV 明确用途覆盖 8/12，holdout 1/6，两组错误决定均 0；
-完整指标和 10 条学习/撤回场景见[第三阶段记录](docs/development/STUDENT_PHASE3.md)。
-
-真实中文 IME、触控板、跨屏、无 Python 的个人电脑和物理断网仍需人工验收。
-目前不承诺多窗口冲突合并，也没有超大账本长期压力测试。
-
-- [阶段验收与截图](docs/development/STUDENT_PHASE2.md)、[第三阶段 Windows/打包记录](docs/development/STUDENT_PHASE3.md)
-- [贡献指南](CONTRIBUTING.md)、[安全反馈](SECURITY.md)、[开源准备清单](docs/OPEN_SOURCE_READINESS.md)
-- [产品约束](docs/PRODUCT.md)、[维护规则与代码分层](docs/MAINTENANCE.md)、[设计修订和回退](docs/design/Student_Edition_Amendment.md)
-- [第三方依赖与资源来源](docs/THIRD_PARTY.md)、[文档入口](docs/README.md)
+Cashing 采用 [MIT 许可证](LICENSE)，© 2026 Lorentz-Caldfilis。
+可免费使用、修改和再分发，须保留版权与许可声明。第三方组件的许可见 [依赖说明](docs/THIRD_PARTY.md)。

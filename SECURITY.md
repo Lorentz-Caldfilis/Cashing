@@ -7,4 +7,4 @@ Cashing 账本、草稿和备份保存在本地，未加密。请使用系统账
 GitHub 私密漏洞报告按钮如已启用，也可从 Security → Report a vulnerability 发起。私有阶段该接口可能不可用，邮箱渠道不依赖仓库是否公开。维护者会在核对后处理，不承诺固定响应期限。
 
 发现数据库损坏时保留原文件，停止重复操作并另存副本；程序不会自动清空或重建无效账本。
-恢复备份前关闭应用并另存当前账本。更多数据边界见 README 和 docs/OPEN_SOURCE_READINESS.md。
+恢复备份前关闭应用并另存当前账本。更多数据边界见 README 和 [使用指南](docs/USER_GUIDE.md)。

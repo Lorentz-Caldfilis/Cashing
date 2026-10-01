@@ -1,48 +1,38 @@
-# 参与开发
+# 参与 Cashing
 
-先阅读 [产品约束](docs/PRODUCT.md)、[维护规范](docs/MAINTENANCE.md)与
-[Student edition 设计修订](docs/design/Student_Edition_Amendment.md)。项目采用 MIT；提交贡献表示你有权按同一许可提供该贡献，版权仍属于各自作者。无需转让版权。
+欢迎提交 bug、体验建议和 Pull Request。项目采用 MIT；贡献者须有权按同一许可提供贡献，
+各自保留其贡献的版权。请先阅读 [产品设计原则](docs/PRODUCT.md)和 [开发指南](docs/development/DEVELOPER_GUIDE.md)。
 
-1. 从明确的基线创建独立分支；保留他人未提交改动。
-2. 使用新建的 `work/` 合成数据目录，不提交账本、草稿、日志或个人失败样例。
-3. SQL 仅在 database.py；UI 调用 Ledger；金额使用整数分。
-4. 针对改动运行测试，阶段结束运行完整测试；记录真实运行的平台和未测试项目。
-5. PR 说明问题、新行为、验证与回退方法。数据迁移必须另行说明兼容、备份与失败回滚。
+## 报告问题
 
-```bash
-.venv/bin/python -m pytest -q -W error --basetemp work/pytest-contribution
-.venv/bin/python scripts/verify_desktop.py --platform offscreen --label contribution-unique
-```
+请说明版本、系统、操作步骤、预期与实际结果，用虚构的消费记录复现。
+不要上传个人账本、备份、私人截图或完整日志。安全问题按 [安全说明](SECURITY.md)私密报告。
+分类不准确时，给出匿名说明、期望用途及当前结果即可。
 
-`--basetemp` 会被 pytest 清理，只能指向专用测试目录。原生 Windows 与发行包验收命令见 README。
-不要把 Linux/offscreen 的通过结果写成 Windows 实机通过；不要修改许可证、公开仓库或发布资产，除非所有者明确授权。
+## 提交修改
 
-## Windows 与候选包
+1. 从现行 main 创建分支，每次 PR 聚焦一个问题。
+2. 用新的 `work/` 合成数据目录开发，不操作个人账本。
+3. UI 调用 Ledger，SQL 仅在 database.py；金额计算使用整数分。
+4. 针对修改运行测试，说明真实验证的平台与未测范围。
+5. PR 写清问题、行为变化、验证及回退方法；迁移另说明兼容、备份和失败回滚。
 
-Windows 在仓库根目录执行：
+Windows PowerShell：
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-lock.txt
-.\.venv\Scripts\python.exe -m pytest -q -W error --basetemp work/pytest-contribution
-.\.venv\Scripts\python.exe scripts/verify_release.py --phase source --label contribution-source-01
+.\.venv\Scripts\python.exe -m pytest -q -W error --basetemp work/pytest-contribution-unique
+.\.venv\Scripts\python.exe scripts/verify_release.py --phase source --label contribution-source-unique
 ```
 
-PR 的 Windows Actions 使用精确 head SHA，而非临时合并提交；失败时先检查具体步骤与 JUnit，
-不能把上传成功当作测试通过。构建/解压步骤见 [Windows 候选验证](docs/WINDOWS_CANDIDATE.md)。
-新增依赖或资源必须更新 [来源记录](docs/THIRD_PARTY.md)；上游授权文本保留原始字节和来源摘要。
-Qt 界面变动应附合成截图；原生输入法、触控板等未测项目必须列出。
+pytest 会清理 basetemp，只能指向专用测试目录；每次 GUI 验证使用新 label 并串行运行。
+Linux/offscreen 测试不能写成 Windows 实机验证。构建及发行检查见 [Windows 构建验证](docs/WINDOWS_CANDIDATE.md)。
 
-分类评估的固定 DEV/HOLDOUT 不因结果不好而修改。覆盖率和错误决定分开报告，
-新增失败场景加入独立回归集；不要为提高合成分数扩大弱证据推断。
-SQLite `with connection` 只管理事务，不关闭连接；测试也必须显式 close 或使用 contextlib.closing。
+数据库修改须遵循 [维护规范](docs/MAINTENANCE.md)；分类修改遵循 [分类设计](docs/development/CLASSIFICATION.md)，
+不得为了提高分数修改固定语料或将合成结果声称为真实准确率。
+新增依赖或资源须更新 [来源记录](docs/THIRD_PARTY.md)，保留上游许可原文。
+产品或操作路径改变时局部更新现行文档，不把阶段日志、完整测试输出及旧截图提交为产品说明。
 
-## 提交前检查
-
-```bash
-.venv/bin/python scripts/audit_repository.py --output work/repository-audit.json
-```
-
-该工具只扫描本地可达 Git blob 的少量敏感模式，不打印匹配值；不是完整泄漏检测认证。
-还需检查当前未跟踪文件、截图和日志，不能依赖 `.gitignore` 保护已经跟踪的文件。
-报告故障与体验建议可使用 issue 模板；安全问题先按 SECURITY.md 处理。
+提交前审查 diff 和隐私文件，可使用 `python scripts/audit_repository.py --output work/repository-audit.json` 辅助扫描；
+它只检查少量可达 Git blob 的敏感模式，不是完整泄漏检测。不要自动修改许可、公开仓库或更新发布资产。

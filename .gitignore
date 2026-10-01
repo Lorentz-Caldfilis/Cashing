@@ -49,3 +49,9 @@ appearance-background.png
 draft.json
 .codex/
 *.code-workspace
+# Local agent instructions, development notes and personal launchers
+/AGENTS.md
+/docs/development/LOCAL_UPDATE_*.md
+/docs/development/OCTOBER_2026_RELEASE.md
+/运行Cashing.bat
+/测试Cashing.bat
